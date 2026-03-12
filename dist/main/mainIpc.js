@@ -19,7 +19,7 @@ function ensureV1(baseUrl) {
 function ensureApiV1(baseUrl) {
     return baseUrl.endsWith("/api/v1") ? baseUrl : `${baseUrl}/api/v1`;
 }
-function buildProviderRequest(provider, model, prompt, input) {
+function buildProviderRequest(provider, model, prompt, input, lmStudioInputFormat = "string") {
     const isLmStudio = provider.vendor === "lmstudio";
     const baseUrl = provider.vendor === "openai"
         ? normalizeBaseUrl(provider.baseUrl, "https://api.openai.com/v1")
@@ -31,7 +31,9 @@ function buildProviderRequest(provider, model, prompt, input) {
         ? {
             model,
             system_prompt: prompt,
-            input: [{ type: "text", text: input }]
+            input: lmStudioInputFormat === "array"
+                ? [{ type: "text", content: input }]
+                : input,
         }
         : {
             model,
@@ -52,39 +54,80 @@ async function executeProviderRequest(provider, model, prompt, input) {
     if (sanitizedApiKey && /[^\x20-\x7E]/.test(sanitizedApiKey)) {
         throw new Error("API key contains non-ASCII characters. Re-enter the key.");
     }
-    const { url, body, baseUrl, isLmStudio } = buildProviderRequest(provider, model, prompt, input);
-    let response;
-    try {
-        response = await fetch(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {})
-            },
-            body: JSON.stringify(body)
-        });
+    const formats = provider.vendor === "lmstudio" ? ["string", "array"] : ["string"];
+    let lastError = null;
+    for (const format of formats) {
+        const { url, body, baseUrl, isLmStudio } = buildProviderRequest(provider, model, prompt, input, format);
+        let response;
+        try {
+            response = await fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {}),
+                },
+                body: JSON.stringify(body),
+            });
+        }
+        catch (error) {
+            const isLocal = provider.vendor === "ollama" || provider.vendor === "lmstudio";
+            const detail = error instanceof Error ? error.message : String(error);
+            const message = isLocal
+                ? `Connection failed to ${baseUrl} (${provider.name}). Is the local server running?`
+                : `Request failed: ${detail}`;
+            throw new Error(message);
+        }
+        if (!response.ok) {
+            const text = await response.text();
+            const lower = text.toLowerCase();
+            const shouldRetry = provider.vendor === "lmstudio" &&
+                (lower.includes("invalid discriminator") ||
+                    lower.includes("expected string") ||
+                    lower.includes("invalid_union"));
+            lastError = new Error(`Provider error (${response.status}): ${text}`);
+            if (shouldRetry && format === "string") {
+                continue;
+            }
+            if (shouldRetry && format === "array") {
+                continue;
+            }
+            throw lastError;
+        }
+        const json = (await response.json());
+        let output = "";
+        if (isLmStudio) {
+            if (Array.isArray(json?.output)) {
+                const messageItem = json.output.find((item) => item?.type === "message");
+                if (messageItem && typeof messageItem.content === "string") {
+                    output = messageItem.content;
+                }
+                else if (messageItem && messageItem.content !== undefined) {
+                    output = String(messageItem.content);
+                }
+            }
+            else if (typeof json?.output === "string") {
+                output = json.output;
+            }
+            else if (typeof json?.message === "string") {
+                output = json.message;
+            }
+            else {
+                output = json?.choices?.[0]?.message?.content ?? "";
+            }
+        }
+        else {
+            output = json?.choices?.[0]?.message?.content ?? "";
+        }
+        if (!output) {
+            const errorMessage = json?.error?.message ?? "Provider returned no choices.";
+            throw new Error(errorMessage);
+        }
+        return output;
     }
-    catch (error) {
-        const isLocal = provider.vendor === "ollama" || provider.vendor === "lmstudio";
-        const detail = error instanceof Error ? error.message : String(error);
-        const message = isLocal
-            ? `Connection failed to ${baseUrl} (${provider.name}). Is the local server running?`
-            : `Request failed: ${detail}`;
-        throw new Error(message);
+    if (lastError) {
+        throw lastError;
     }
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(`Provider error (${response.status}): ${text}`);
-    }
-    const json = (await response.json());
-    const output = isLmStudio
-        ? json?.output ?? json?.message ?? json?.choices?.[0]?.message?.content ?? ""
-        : json?.choices?.[0]?.message?.content ?? "";
-    if (!output) {
-        const errorMessage = json?.error?.message ?? "Provider returned no choices.";
-        throw new Error(errorMessage);
-    }
-    return output;
+    throw new Error("Provider request failed.");
 }
 async function resolveProviderId(config, context) {
     const explicitId = config.providerId ?? context.data.providerId ?? null;

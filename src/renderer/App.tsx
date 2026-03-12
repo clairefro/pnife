@@ -101,7 +101,7 @@ export default function App() {
         ].slice(-50),
       );
       if (event.type === "stream") {
-        setLastOutput(event.message);
+        setLastOutput(coerceText(event.message));
       }
       if (event.stepStatus === "started" && event.stepId) {
         setPipelineCurrentStepId(event.stepId);
@@ -116,10 +116,12 @@ export default function App() {
           pipelineCurrentStepRef.current = null;
         }
         if (event.output) {
+          const outputText =
+            typeof event.output === "string" ? event.output : formatPipelineValue(event.output);
           setPipelineOutputs((prev) => ({
             ...prev,
-            [event.stepId]: event.output ?? prev[event.stepId],
-            [PIPELINE_OUTPUT_KEY]: event.output ?? prev[PIPELINE_OUTPUT_KEY],
+            [event.stepId]: outputText ?? prev[event.stepId],
+            [PIPELINE_OUTPUT_KEY]: outputText ?? prev[PIPELINE_OUTPUT_KEY],
           }));
         }
       }
@@ -525,6 +527,30 @@ export default function App() {
     return `${trimmed.slice(0, 200)}...`;
   }
 
+  function formatPipelineValue(value: unknown) {
+    if (value === null || value === undefined) {
+      return "—";
+    }
+    if (typeof value === "string") {
+      return value;
+    }
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+
+  function coerceText(value: unknown) {
+    if (typeof value === "string") {
+      return value;
+    }
+    if (value === null || value === undefined) {
+      return "";
+    }
+    return formatPipelineValue(value);
+  }
+
   function splitProcessingMessage(message: string) {
     const parts = message.split(" | ");
     return {
@@ -605,7 +631,7 @@ export default function App() {
                 onChange={(event) => setInputText(event.target.value)}
               />
               <div className={styles.output}>
-                {lastOutput ? lastOutput : "Run a tool to see output."}
+                {lastOutput ? formatPipelineValue(lastOutput) : "Run a tool to see output."}
               </div>
             </div>
           </section>
@@ -1052,7 +1078,7 @@ export default function App() {
                     </button>
                   </div>
                   <div className={styles.output}>
-                    {lastOutput ? lastOutput : "Run a tool to see output."}
+                    {lastOutput ? formatPipelineValue(lastOutput) : "Run a tool to see output."}
                   </div>
                 </div>
               </section>
@@ -1143,7 +1169,7 @@ export default function App() {
                       <div className={styles.pipelineMain}>
                         <div className={styles.pipelineLabel}>INPUT</div>
                         <div className={styles.pipelineOutput}>
-                          {pipelineOutputs[PIPELINE_INPUT_KEY] ?? "—"}
+                          {formatPipelineValue(pipelineOutputs[PIPELINE_INPUT_KEY])}
                         </div>
                       </div>
                     </div>
@@ -1169,7 +1195,7 @@ export default function App() {
                               </span>
                             </div>
                             <div className={styles.pipelineOutput}>
-                              {pipelineOutputs[step.id] ?? "—"}
+                              {formatPipelineValue(pipelineOutputs[step.id])}
                             </div>
                           </div>
                         </div>
@@ -1182,7 +1208,7 @@ export default function App() {
                       <div className={styles.pipelineMain}>
                         <div className={styles.pipelineLabel}>OUTPUT</div>
                         <div className={styles.pipelineOutput}>
-                          {pipelineOutputs[PIPELINE_OUTPUT_KEY] ?? "—"}
+                          {formatPipelineValue(pipelineOutputs[PIPELINE_OUTPUT_KEY])}
                         </div>
                       </div>
                     </div>
