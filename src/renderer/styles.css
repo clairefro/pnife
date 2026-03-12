@@ -2,6 +2,26 @@
   color-scheme: dark;
   font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
   background: #0a0a0a;
+  --color-bg: #0a0a0a;
+  --color-surface: #0f0f0f;
+  --color-border: #262626;
+  --color-border-strong: #3a3a3a;
+  --color-text: #d4d4d4;
+  --color-text-strong: #f2f2f2;
+  --color-muted: #8f8f8f;
+  --color-muted-soft: #7f7f7f;
+  --color-muted-strong: #bfbfbf;
+  --color-muted-alt: #9a9a9a;
+  --color-accent: #6bb6ff;
+  --color-success: #6bff9d;
+  --color-danger: #ff6b6b;
+  --color-danger-soft: #ff8f8f;
+  --color-warn: #f5a623;
+  --color-warning: #f2c94c;
+  --color-surface-strong: #111111;
+  --color-text-bright: #ffffff;
+  --color-text-subtle: #cfcfcf;
+  --color-transform: #b388ff;
 }
 
 * {
@@ -10,5 +30,5 @@
 
 body {
   margin: 0;
-  background: #0a0a0a;
+  background: var(--color-bg);
 }

@@ -1,7 +1,7 @@
 .app {
   min-height: 100vh;
-  background: #0a0a0a;
-  color: #f2f2f2;
+  background: var(--color-bg);
+  color: var(--color-text-strong);
   display: flex;
   flex-direction: column;
 }
@@ -11,7 +11,7 @@
   align-items: baseline;
   justify-content: space-between;
   padding: 20px 24px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .title {
@@ -21,7 +21,7 @@
 
 .meta {
   font-size: 12px;
-  color: #9a9a9a;
+  color: var(--color-muted-alt);
 }
 
 .tabs {
@@ -31,8 +31,8 @@
 
 .tab {
   background: transparent;
-  border: 1px solid #262626;
-  color: #bfbfbf;
+  border: 1px solid var(--color-border);
+  color: var(--color-muted-strong);
   padding: 6px 12px;
   font-size: 12px;
   letter-spacing: 0.6px;
@@ -41,9 +41,9 @@
 }
 
 .tabActive {
-  background: #f2f2f2;
-  color: #0a0a0a;
-  border: 1px solid #f2f2f2;
+  background: var(--color-text-strong);
+  color: var(--color-bg);
+  border: 1px solid var(--color-text-strong);
   padding: 6px 12px;
   font-size: 12px;
   letter-spacing: 0.6px;
@@ -59,37 +59,37 @@
 }
 
 .panel {
-  border: 1px solid #262626;
-  background: #0f0f0f;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   min-height: 240px;
   display: flex;
   flex-direction: column;
 }
 
 .panelWide {
-  border: 1px solid #262626;
-  background: #0f0f0f;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   margin: 0 24px 60px;
   display: flex;
   flex-direction: column;
 }
 
 .panelTitle {
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--color-border);
   padding: 12px 14px;
   font-size: 12px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
 }
 
 .panelTitleAlt {
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--color-border);
   padding: 10px 12px;
   font-size: 11px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
 }
 
 .panelBody {
@@ -99,15 +99,15 @@
 }
 
 .card {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
   font-size: 13px;
 }
 
 .cardRow {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
   font-size: 13px;
   display: flex;
@@ -122,7 +122,7 @@
 
 .cardMeta {
   font-size: 11px;
-  color: #8f8f8f;
+  color: var(--color-muted);
 }
 
 .form {
@@ -130,7 +130,7 @@
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   padding-bottom: 12px;
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .field {
@@ -143,19 +143,19 @@
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.6px;
-  color: #8f8f8f;
+  color: var(--color-muted);
 }
 
 .input {
-  background: #0a0a0a;
-  border: 1px solid #262626;
-  color: #f2f2f2;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-strong);
   padding: 8px 10px;
   font-size: 13px;
 }
 
 .input:focus {
-  outline: 1px solid #3a3a3a;
+  outline: 1px solid var(--color-border-strong);
 }
 
 .checkboxLabel {
@@ -163,12 +163,12 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
 }
 
 .button {
-  background: #f2f2f2;
-  color: #0a0a0a;
+  background: var(--color-text-strong);
+  color: var(--color-bg);
   border: none;
   padding: 9px 14px;
   font-size: 12px;
@@ -180,7 +180,7 @@
 }
 
 .button:hover {
-  background: #ffffff;
+  background: var(--color-text-bright);
 }
 
 .form .ghostButton {
@@ -189,9 +189,9 @@
 }
 
 .banner {
-  border: 1px solid #262626;
-  background: #111111;
-  color: #f2c94c;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-strong);
+  color: var(--color-warning);
   padding: 10px 12px;
   font-size: 12px;
 }
@@ -206,8 +206,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
 }
 
@@ -216,7 +216,7 @@
   align-items: center;
   gap: 6px;
   font-size: 11px;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
 }
 
 .radioText {
@@ -236,7 +236,7 @@
 
 .rowMeta {
   font-size: 11px;
-  color: #8f8f8f;
+  color: var(--color-muted);
 }
 
 .rowActions {
@@ -275,9 +275,9 @@
   grid-template-columns: 12px minmax(0, 1fr);
   gap: 12px;
   align-items: flex-start;
-  border: 1px solid #262626;
+  border: 1px solid var(--color-border);
   padding: 10px 12px;
-  background: #0a0a0a;
+  background: var(--color-bg);
 }
 
 .pipelineIndicator {
@@ -288,16 +288,16 @@
 }
 
 .pipelineIndicatorIdle {
-  background: #3a3a3a;
+  background: var(--color-border-strong);
 }
 
 .pipelineIndicatorActive {
-  background: #6bff9d;
+  background: var(--color-success);
   box-shadow: 0 0 0 4px rgba(107, 255, 157, 0.15);
 }
 
 .pipelineIndicatorError {
-  background: #ff6b6b;
+  background: var(--color-danger);
   box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.15);
 }
 
@@ -310,17 +310,17 @@
   font-size: 12px;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #d4d4d4;
+  color: var(--color-text);
 }
 
 .pipelineKind {
-  color: #8f8f8f;
+  color: var(--color-muted);
   font-size: 11px;
 }
 
 .pipelineOutput {
   font-size: 12px;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
   white-space: pre-wrap;
 }
 
@@ -350,8 +350,8 @@
   position: absolute;
   top: calc(100% + 6px);
   right: 0;
-  background: #0a0a0a;
-  border: 1px solid #262626;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   display: grid;
   gap: 4px;
   padding: 6px;
@@ -362,7 +362,7 @@
 .dropdownItem {
   background: transparent;
   border: 1px solid transparent;
-  color: #d4d4d4;
+  color: var(--color-text);
   padding: 6px 8px;
   text-align: left;
   font-size: 12px;
@@ -370,7 +370,7 @@
 }
 
 .dropdownItem:hover {
-  border-color: #3a3a3a;
+  border-color: var(--color-border-strong);
 }
 
 .modalBackdrop {
@@ -384,8 +384,8 @@
 }
 
 .modal {
-  background: #0a0a0a;
-  border: 1px solid #262626;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
   padding: 16px;
   width: min(420px, 90vw);
   display: grid;
@@ -396,12 +396,12 @@
   font-size: 13px;
   letter-spacing: 0.4px;
   text-transform: uppercase;
-  color: #f2f2f2;
+  color: var(--color-text-strong);
 }
 
 .modalBody {
   font-size: 13px;
-  color: #cfcfcf;
+  color: var(--color-text-subtle);
 }
 
 .modalActions {
@@ -411,9 +411,9 @@
 }
 
 .dangerButton {
-  background: #ff6b6b;
-  border: 1px solid #ff6b6b;
-  color: #0a0a0a;
+  background: var(--color-danger);
+  border: 1px solid var(--color-danger);
+  color: var(--color-bg);
   padding: 6px 12px;
   font-size: 11px;
   letter-spacing: 0.6px;
@@ -422,31 +422,31 @@
 }
 
 .toolRow {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
 }
 
 .toolRowActive {
-  border: 1px solid #6bb6ff;
-  background: #0a0a0a;
+  border: 1px solid var(--color-accent);
+  background: var(--color-bg);
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
 }
 
 .stepsPanel {
-  border: 1px solid #262626;
-  background: #0f0f0f;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
   display: flex;
   flex-direction: column;
 }
 
 .stepCard {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
@@ -454,8 +454,8 @@
 }
 
 .stepCardStatic {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 10px 12px;
 }
 
@@ -476,7 +476,7 @@
 }
 
 .stepHeader:focus-visible {
-  outline: 1px solid #6bb6ff;
+  outline: 1px solid var(--color-accent);
   outline-offset: 2px;
 }
 
@@ -494,15 +494,15 @@
 
 .stepDelete {
   background: transparent;
-  border: 1px solid #3a3a3a;
-  color: #ff8f8f;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-danger-soft);
   font-size: 11px;
   padding: 4px 8px;
   cursor: pointer;
 }
 
 .stepDelete:hover {
-  border-color: #ff8f8f;
+  border-color: var(--color-danger-soft);
 }
 
 .stepName {
@@ -512,11 +512,11 @@
 
 .stepChevron {
   font-size: 16px;
-  color: #7f7f7f;
+  color: var(--color-muted-soft);
 }
 
 .stepEditor {
-  border-top: 1px solid #262626;
+  border-top: 1px solid var(--color-border);
   padding-top: 10px;
   display: grid;
   gap: 10px;
@@ -527,7 +527,7 @@
   align-items: center;
   gap: 8px;
   font-size: 12px;
-  color: #bfbfbf;
+  color: var(--color-muted-strong);
 }
 
 .stepField {
@@ -539,7 +539,7 @@
   font-size: 11px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
-  color: #8f8f8f;
+  color: var(--color-muted);
 }
 
 .stepFieldActions {
@@ -548,58 +548,58 @@
 }
 
 .stepInput {
-  color: #f5a623;
+  color: var(--color-warn);
   font-size: 11px;
   letter-spacing: 0.6px;
 }
 
 .stepTransform {
-  color: #b388ff;
+  color: var(--color-transform);
   font-size: 11px;
   letter-spacing: 0.6px;
 }
 
 .stepOutput {
-  color: #6bff9d;
+  color: var(--color-success);
   font-size: 11px;
   letter-spacing: 0.6px;
 }
 
 .stepMissing {
-  color: #ff6b6b;
+  color: var(--color-danger);
   font-size: 11px;
   letter-spacing: 0.6px;
 }
 
 .ghostButton {
   background: transparent;
-  border: 1px solid #262626;
-  color: #d4d4d4;
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
   padding: 6px 10px;
   font-size: 11px;
   cursor: pointer;
 }
 
 .ghostButton:hover {
-  border-color: #3a3a3a;
+  border-color: var(--color-border-strong);
 }
 
 .providerTestOk {
   font-size: 11px;
-  color: #6bff9d;
+  color: var(--color-success);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
 .providerTestError {
   font-size: 11px;
-  color: #ff6b6b;
+  color: var(--color-danger);
   text-transform: uppercase;
   letter-spacing: 0.4px;
 }
 
 .muted {
-  color: #7f7f7f;
+  color: var(--color-muted-soft);
   font-size: 13px;
 }
 
@@ -608,8 +608,8 @@
   left: 0;
   right: 0;
   bottom: 0;
-  border-top: 1px solid #262626;
-  background: #0a0a0a;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 8px 16px;
   display: flex;
   align-items: center;
@@ -619,14 +619,14 @@
 
 .statusText {
   font-size: 12px;
-  color: #8f8f8f;
+  color: var(--color-muted);
   letter-spacing: 0.3px;
 }
 
 .textarea {
-  background: #0a0a0a;
-  border: 1px solid #262626;
-  color: #f2f2f2;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-strong);
   padding: 10px;
   font-size: 13px;
   min-height: 140px;
@@ -634,9 +634,9 @@
 }
 
 .output {
-  border: 1px solid #262626;
-  background: #0a0a0a;
-  color: #f2f2f2;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text-strong);
   padding: 10px;
   font-size: 13px;
   min-height: 120px;
@@ -644,39 +644,39 @@
 }
 
 .activityItem {
-  border: 1px solid #262626;
-  background: #0a0a0a;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
   padding: 8px 10px;
   font-size: 12px;
-  color: #cfcfcf;
+  color: var(--color-text-subtle);
 }
 
 .activityInfo {
-  color: #6bb6ff;
+  color: var(--color-accent);
 }
 
 .activityError {
-  color: #ff6b6b;
+  color: var(--color-danger);
 }
 
 .activityOutput {
-  color: #6bff9d;
+  color: var(--color-success);
 }
 
 .activityText {
-  color: #cfcfcf;
+  color: var(--color-text-subtle);
 }
 
 .activityMeta {
-  color: #7f7f7f;
+  color: var(--color-muted-soft);
 }
 
 .loading {
-  border: 1px solid #262626;
-  background: #111111;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-strong);
   padding: 8px 10px;
   font-size: 12px;
-  color: #f2f2f2;
+  color: var(--color-text-strong);
 }
 
 .loadingDots {

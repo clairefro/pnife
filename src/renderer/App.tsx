@@ -2,6 +2,13 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./App.module.css";
 import { ToolDefinition } from "../shared/tools";
 import { ProviderConfig, ProviderKind, Step } from "../shared/types";
+import ActivityFeed from "./components/ActivityFeed";
+import TestBenchPanel from "./components/TestBenchPanel";
+import PipelinePanel from "./components/PipelinePanel";
+import ToolsList from "./components/ToolsList";
+import StepsEditor from "./components/StepsEditor";
+import RunPanel from "./components/RunPanel";
+import ProvidersPanel from "./components/ProvidersPanel";
 
 export default function App() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
@@ -27,7 +34,15 @@ export default function App() {
   const activityEndRef = useRef<HTMLDivElement | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
   const lastRunInputRef = useRef<string>("");
-  const [providerForm, setProviderForm] = useState({
+  const [providerForm, setProviderForm] = useState<{
+    name: string;
+    vendor: "openai" | "mock" | "anthropic" | "google" | "ollama" | "lmstudio";
+    kind: ProviderKind;
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    enabled: boolean;
+  }>({
     name: "",
     vendor: "openai",
     kind: "cloud" as ProviderKind,
@@ -50,7 +65,10 @@ export default function App() {
   );
   const pipelineCurrentStepRef = useRef<string | null>(null);
   const [providerTests, setProviderTests] = useState<
-    Record<string, { status: "idle" | "testing" | "ok" | "error"; message?: string }>
+    Record<
+      string,
+      { status: "idle" | "testing" | "ok" | "error"; message?: string }
+    >
   >({});
 
   const PIPELINE_INPUT_KEY = "__INPUT__";
@@ -108,7 +126,10 @@ export default function App() {
         pipelineCurrentStepRef.current = event.stepId;
       }
       if (event.stepStatus === "errored" && event.stepId) {
-        setPipelineErrors((prev) => ({ ...prev, [event.stepId]: true }));
+        setPipelineErrors((prev) => ({
+          ...prev,
+          [String(event.stepId)]: true,
+        }));
       }
       if (event.stepStatus === "completed" && event.stepId) {
         if (pipelineCurrentStepRef.current === event.stepId) {
@@ -117,10 +138,12 @@ export default function App() {
         }
         if (event.output) {
           const outputText =
-            typeof event.output === "string" ? event.output : formatPipelineValue(event.output);
+            typeof event.output === "string"
+              ? event.output
+              : formatPipelineValue(event.output);
           setPipelineOutputs((prev) => ({
             ...prev,
-            [event.stepId]: outputText ?? prev[event.stepId],
+            [String(event.stepId)]: outputText ?? prev[String(event.stepId)],
             [PIPELINE_OUTPUT_KEY]: outputText ?? prev[PIPELINE_OUTPUT_KEY],
           }));
         }
@@ -308,6 +331,17 @@ export default function App() {
     const nextTools = [...tools, nextTool];
     await persistTools(nextTools);
     setSelectedToolId(id);
+  }
+
+  async function handleSaveToolName(toolId: string, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    const nextTools = tools.map((tool) =>
+      tool.id === toolId ? { ...tool, name: trimmed } : tool,
+    );
+    await persistTools(nextTools);
   }
 
   async function handleAddStep(kind: "transform" | "output") {
@@ -519,7 +553,8 @@ export default function App() {
   }
 
   function formatOutput(message: string) {
-    const safeMessage = typeof message === "string" ? message : String(message ?? "");
+    const safeMessage =
+      typeof message === "string" ? message : String(message ?? "");
     const trimmed = safeMessage.trim();
     if (trimmed.length <= 200) {
       return trimmed;
@@ -596,117 +631,22 @@ export default function App() {
 
       {activeTab === "run" && (
         <main className={styles.main}>
-          <section className={styles.panel}>
-            <div className={styles.panelTitle}>Pipeline Stack</div>
-            <div className={styles.panelBody}>
-              {tools.length === 0 ? (
-                <div className={styles.muted}>No tools loaded.</div>
-              ) : (
-                tools.map((tool) => (
-                  <div key={tool.id} className={styles.cardRow}>
-                    <div>
-                      <div className={styles.cardTitle}>{tool.name}</div>
-                      <div className={styles.cardMeta}>
-                        {tool.pipeline.length} steps
-                      </div>
-                    </div>
-                    <button
-                      className={styles.ghostButton}
-                      onClick={() => handleRunTool(tool)}
-                    >
-                      Run
-                    </button>
-                  </div>
-                ))
-              )}
-            </div>
-          </section>
+          <RunPanel tools={tools} onRun={handleRunTool} />
 
-          <section className={styles.panel}>
-            <div className={styles.panelTitle}>Test Bench</div>
-            <div className={styles.panelBody}>
-              <textarea
-                className={styles.textarea}
-                value={inputText}
-                onChange={(event) => setInputText(event.target.value)}
-              />
-              <div className={styles.output}>
-                {lastOutput ? formatPipelineValue(lastOutput) : "Run a tool to see output."}
-              </div>
-            </div>
-          </section>
+          <TestBenchPanel
+            inputText={inputText}
+            onInputChange={setInputText}
+            output={lastOutput}
+            formatOutput={formatPipelineValue}
+          />
 
-          <section className={styles.panel}>
-            <div className={styles.panelTitle}>Activity Feed</div>
-            <div className={styles.panelBody}>
-              {activity.length === 0 ? (
-                <div className={styles.muted}>No activity yet.</div>
-              ) : (
-                activity.map((event) => (
-                  <div key={event.id} className={styles.activityItem}>
-                    <span
-                      className={
-                        event.type === "error"
-                          ? styles.activityError
-                          : event.type === "stream"
-                            ? styles.activityOutput
-                            : styles.activityInfo
-                      }
-                    >
-                      {event.type === "error"
-                        ? "[ERROR]"
-                        : event.type === "stream"
-                          ? "[OUTPUT]"
-                          : "[INFO]"}
-                    </span>{" "}
-                    <span className={styles.activityText}>
-                      {(() => {
-                        const messageText = String(event.message ?? "");
-                        if (event.type === "stream") {
-                          return `Output: ${formatOutput(event.message)}`;
-                        }
-                        if (messageText.startsWith("Processing:")) {
-                          const { main, meta } =
-                            splitProcessingMessage(messageText);
-                          return (
-                            <>
-                              {main}
-                              {meta ? (
-                                <span className={styles.activityMeta}>
-                                  {" "}
-                                  {meta}
-                                </span>
-                              ) : null}
-                            </>
-                          );
-                        }
-                        if (messageText.startsWith("Pipeline complete")) {
-                          const { main, meta } =
-                            splitCompletionMessage(messageText);
-                          return (
-                            <>
-                              {main}
-                              {meta ? (
-                                <span className={styles.activityMeta}>
-                                  {" "}
-                                  {meta}
-                                </span>
-                              ) : null}
-                            </>
-                          );
-                        }
-                        return messageText;
-                      })()}
-                      {String(event.message ?? "").startsWith("Processing:") && (
-                        <span className={styles.loadingDots}>...</span>
-                      )}
-                    </span>
-                  </div>
-                ))
-              )}
-              <div ref={activityEndRef} />
-            </div>
-          </section>
+          <ActivityFeed
+            activity={activity}
+            activityEndRef={activityEndRef}
+            formatOutput={formatOutput}
+            splitProcessingMessage={splitProcessingMessage}
+            splitCompletionMessage={splitCompletionMessage}
+          />
         </main>
       )}
 
@@ -718,504 +658,77 @@ export default function App() {
               <div className={styles.muted}>No tools loaded.</div>
             ) : (
               <div className={styles.toolsLayout}>
-                <div className={styles.toolsList}>
-                  <div className={styles.toolsListHeader}>
-                    <div className={styles.rowTitle}>Tools</div>
-                    <button
-                      className={styles.ghostButton}
-                      type="button"
-                      onClick={handleAddTool}
-                    >
-                      Add Tool
-                    </button>
-                  </div>
-                  {tools.map((tool) => (
-                    <button
-                      key={tool.id}
-                      className={
-                        selectedToolId === tool.id
-                          ? styles.toolRowActive
-                          : styles.toolRow
-                      }
-                      onClick={() => setSelectedToolId(tool.id)}
-                    >
-                      <div className={styles.rowMain}>
-                        <div className={styles.rowTitle}>{tool.name}</div>
-                        <div className={styles.rowMeta}>
-                          {tool.pipeline.length} steps • {tool.description}
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                <div className={styles.stepsPanel}>
-                  <div className={styles.panelTitleAlt}>Steps</div>
-                  <div className={styles.panelBody}>
-                    <div className={styles.stepsActions}>
-                      <div className={styles.dropdown}>
-                        <button
-                          className={styles.ghostButton}
-                          type="button"
-                          onClick={() => setShowAddStepMenu((prev) => !prev)}
-                          disabled={!selectedTool}
-                        >
-                          Add Step ▾
-                        </button>
-                        {showAddStepMenu && selectedTool && (
-                          <div className={styles.dropdownMenu}>
-                            <button
-                              className={styles.dropdownItem}
-                              type="button"
-                              onClick={() => {
-                                handleAddStep("transform");
-                                setShowAddStepMenu(false);
-                              }}
-                            >
-                              Transform
-                            </button>
-                            <button
-                              className={styles.dropdownItem}
-                              type="button"
-                              onClick={() => {
-                                handleAddStep("output");
-                                setShowAddStepMenu(false);
-                              }}
-                            >
-                              Output
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    {selectedTool ? (
-                      (() => {
-                        const orderedSteps = selectedTool.pipeline;
-
-                        return (
-                          <>
-                            <div className={styles.stepCardStatic}>
-                              <div className={styles.stepHeaderStatic}>
-                                <span className={styles.stepInput}>INPUT</span>
-                                <span className={styles.stepName}>Input</span>
-                              </div>
-                            </div>
-
-                            {orderedSteps.length === 0 ? (
-                              <div className={styles.muted}>
-                                No steps in this tool.
-                              </div>
-                            ) : (
-                              orderedSteps.map((step) => {
-                                const isExpanded = expandedStepId === step.id;
-                                const currentPrompt =
-                                  typeof step.config?.prompt === "string"
-                                    ? step.config.prompt
-                                    : "";
-                                const promptValue =
-                                  stepPromptDrafts[step.id] ?? currentPrompt;
-                                const hasPrompt =
-                                  step.kind === "transform" ||
-                                  typeof step.config?.prompt === "string";
-                                const typeValue =
-                                  typeof step.config?.type === "string"
-                                    ? step.config.type
-                                    : "";
-                                const modeValue =
-                                  typeof step.config?.mode === "string"
-                                    ? step.config.mode
-                                    : "prompt";
-                                return (
-                                  <div
-                                    key={step.id}
-                                    className={`${styles.stepCard} ${
-                                      step.enabled
-                                        ? ""
-                                        : styles.stepCardDisabled
-                                    }`}
-                                    draggable
-                                    onDragStart={() => setDragStepId(step.id)}
-                                    onDragEnd={() => setDragStepId(null)}
-                                    onDragOver={(event) =>
-                                      event.preventDefault()
-                                    }
-                                    onDrop={() => {
-                                      if (dragStepId && selectedTool) {
-                                        handleReorderStep(
-                                          selectedTool,
-                                          dragStepId,
-                                          step.id,
-                                        );
-                                        setDragStepId(null);
-                                      }
-                                    }}
-                                  >
-                                    <div
-                                      role="button"
-                                      tabIndex={0}
-                                      className={styles.stepHeader}
-                                      onClick={() => handleToggleStepEdit(step)}
-                                      onKeyDown={(event) => {
-                                        if (
-                                          event.key === "Enter" ||
-                                          event.key === " "
-                                        ) {
-                                          event.preventDefault();
-                                          handleToggleStepEdit(step);
-                                        }
-                                      }}
-                                      aria-expanded={isExpanded}
-                                    >
-                                      <span
-                                        className={
-                                          step.kind === "output"
-                                            ? styles.stepOutput
-                                            : styles.stepTransform
-                                        }
-                                      >
-                                        {step.kind.toUpperCase()}
-                                      </span>
-                                      <span className={styles.stepName}>
-                                        {step.name}
-                                      </span>
-                                      <span
-                                        className={styles.stepHeaderActions}
-                                      >
-                                        <button
-                                          type="button"
-                                          className={styles.stepDelete}
-                                          onClick={(event) => {
-                                            event.stopPropagation();
-                                            setPendingDeleteStep(step);
-                                          }}
-                                        >
-                                          Delete
-                                        </button>
-                                        <span className={styles.stepChevron}>
-                                          {isExpanded ? "–" : "+"}
-                                        </span>
-                                      </span>
-                                    </div>
-                                    {isExpanded && (
-                                      <div className={styles.stepEditor}>
-                                        <div className={styles.stepField}>
-                                          <div
-                                            className={styles.stepFieldLabel}
-                                          >
-                                            Name
-                                          </div>
-                                          <input
-                                            className={styles.input}
-                                            defaultValue={step.name}
-                                            onBlur={(event) =>
-                                              selectedTool
-                                                ? handleSaveStepName(
-                                                    selectedTool.id,
-                                                    step,
-                                                    event.target.value,
-                                                  )
-                                                : undefined
-                                            }
-                                          />
-                                        </div>
-                                        <label className={styles.stepToggle}>
-                                          <input
-                                            type="checkbox"
-                                            checked={step.enabled}
-                                            onChange={(event) =>
-                                              selectedTool
-                                                ? handleToggleStepEnabled(
-                                                    selectedTool.id,
-                                                    step.id,
-                                                    event.target.checked,
-                                                  )
-                                                : undefined
-                                            }
-                                          />
-                                          <span>Enabled</span>
-                                        </label>
-                                        {step.kind === "transform" ? (
-                                          <div className={styles.stepField}>
-                                            <div
-                                              className={styles.stepFieldLabel}
-                                            >
-                                              Type
-                                            </div>
-                                            <select
-                                              className={styles.input}
-                                              value={modeValue}
-                                              onChange={(event) =>
-                                                selectedTool
-                                                  ? handleSaveStepMode(
-                                                      selectedTool.id,
-                                                      step,
-                                                      event.target.value,
-                                                    )
-                                                  : undefined
-                                              }
-                                            >
-                                              <option value="prompt">
-                                                Prompt
-                                              </option>
-                                              <option value="structured-data">
-                                                Structured Data
-                                              </option>
-                                            </select>
-                                          </div>
-                                        ) : (
-                                          <div className={styles.stepField}>
-                                            <div
-                                              className={styles.stepFieldLabel}
-                                            >
-                                              Type
-                                            </div>
-                                            <input
-                                              className={styles.input}
-                                              defaultValue={typeValue}
-                                              onBlur={(event) =>
-                                                selectedTool
-                                                  ? handleSaveStepConfigType(
-                                                      selectedTool.id,
-                                                      step,
-                                                      event.target.value,
-                                                    )
-                                                  : undefined
-                                              }
-                                            />
-                                          </div>
-                                        )}
-                                        {hasPrompt && (
-                                          <div className={styles.stepField}>
-                                            <div
-                                              className={styles.stepFieldLabel}
-                                            >
-                                              Prompt
-                                            </div>
-                                            <textarea
-                                              className={styles.textarea}
-                                              value={promptValue}
-                                              onChange={(event) =>
-                                                setStepPromptDrafts((prev) => ({
-                                                  ...prev,
-                                                  [step.id]: event.target.value,
-                                                }))
-                                              }
-                                              rows={3}
-                                            />
-                                            <div
-                                              className={
-                                                styles.stepFieldActions
-                                              }
-                                            >
-                                              <button
-                                                type="button"
-                                                className={styles.ghostButton}
-                                                onClick={() =>
-                                                  selectedTool
-                                                    ? handleSaveStepPrompt(
-                                                        selectedTool.id,
-                                                        step,
-                                                        promptValue,
-                                                      )
-                                                    : undefined
-                                                }
-                                                disabled={
-                                                  promptValue === currentPrompt
-                                                }
-                                              >
-                                                Save Prompt
-                                              </button>
-                                            </div>
-                                          </div>
-                                        )}
-                                      </div>
-                                    )}
-                                  </div>
-                                );
-                              })
-                            )}
-
-                            <div className={styles.stepCardStatic}>
-                              <div className={styles.stepHeaderStatic}>
-                                <span className={styles.stepOutput}>OUT</span>
-                                <span className={styles.stepName}>Output</span>
-                              </div>
-                            </div>
-                          </>
-                        );
-                      })()
-                    ) : (
-                      <div className={styles.muted}>
-                        Select a tool to view steps.
-                      </div>
-                    )}
-                  </div>
-                </div>
+                <ToolsList
+                  tools={tools}
+                  selectedToolId={selectedToolId}
+                  onSelect={setSelectedToolId}
+                  onAddTool={handleAddTool}
+                />
+                <StepsEditor
+                  selectedTool={selectedTool}
+                  showAddStepMenu={showAddStepMenu}
+                  onToggleAddStepMenu={() =>
+                    setShowAddStepMenu((prev) => !prev)
+                  }
+                  onAddStep={(kind) => {
+                    handleAddStep(kind);
+                    setShowAddStepMenu(false);
+                  }}
+                  expandedStepId={expandedStepId}
+                  onToggleStepEdit={handleToggleStepEdit}
+                  onToggleStepEnabled={handleToggleStepEnabled}
+                  onSaveStepName={handleSaveStepName}
+                  onSaveStepConfigType={handleSaveStepConfigType}
+                  onSaveStepPrompt={handleSaveStepPrompt}
+                  onSaveStepMode={handleSaveStepMode}
+                  onDeleteStep={handleDeleteStep}
+                  setPendingDeleteStep={setPendingDeleteStep}
+                  stepPromptDrafts={stepPromptDrafts}
+                  setStepPromptDrafts={setStepPromptDrafts}
+                  dragStepId={dragStepId}
+                  setDragStepId={setDragStepId}
+                  onReorderStep={handleReorderStep}
+                  formatPipelineValue={formatPipelineValue}
+                  onSaveToolName={handleSaveToolName}
+                />
               </div>
             )}
             <div className={styles.toolsTestbench}>
-              <section className={styles.panel}>
-                <div className={styles.panelTitle}>Test Bench</div>
-                <div className={styles.panelBody}>
-                  <textarea
-                    className={styles.textarea}
-                    value={inputText}
-                    onChange={(event) => setInputText(event.target.value)}
-                  />
-                  <div className={styles.testbenchActions}>
-                    <button
-                      className={styles.ghostButton}
-                      type="button"
-                      disabled={!selectedTool}
-                      onClick={() => {
-                        if (selectedTool) {
-                          handleRunTool(selectedTool);
-                        }
-                      }}
-                    >
-                      {selectedTool
-                        ? `Run ${selectedTool.name}`
-                        : "Select a tool to run"}
-                    </button>
-                  </div>
-                  <div className={styles.output}>
-                    {lastOutput ? formatPipelineValue(lastOutput) : "Run a tool to see output."}
-                  </div>
-                </div>
-              </section>
+              <TestBenchPanel
+                inputText={inputText}
+                onInputChange={setInputText}
+                output={lastOutput}
+                runLabel={
+                  selectedTool
+                    ? `Run ${selectedTool.name}`
+                    : "Select a tool to run"
+                }
+                runDisabled={!selectedTool}
+                onRun={() => {
+                  if (selectedTool) {
+                    handleRunTool(selectedTool);
+                  }
+                }}
+                formatOutput={formatPipelineValue}
+              />
 
-              <section className={styles.panel}>
-                <div className={styles.panelTitle}>Activity Feed</div>
-                <div className={styles.panelBody}>
-                  {activity.length === 0 ? (
-                    <div className={styles.muted}>No activity yet.</div>
-                  ) : (
-                    activity.map((event) => (
-                      <div key={event.id} className={styles.activityItem}>
-                        <span
-                          className={
-                            event.type === "error"
-                              ? styles.activityError
-                              : event.type === "stream"
-                                ? styles.activityOutput
-                                : styles.activityInfo
-                          }
-                        >
-                          {event.type === "error"
-                            ? "[ERROR]"
-                            : event.type === "stream"
-                              ? "[OUTPUT]"
-                              : "[INFO]"}
-                        </span>{" "}
-                        <span className={styles.activityText}>
-                          {(() => {
-                            const messageText = String(event.message ?? "");
-                            if (event.type === "stream") {
-                              return `Output: ${formatOutput(event.message)}`;
-                            }
-                            if (messageText.startsWith("Processing:")) {
-                              const { main, meta } =
-                                splitProcessingMessage(messageText);
-                              return (
-                                <>
-                                  {main}
-                                  {meta ? (
-                                    <span className={styles.activityMeta}>
-                                      {" "}
-                                      {meta}
-                                    </span>
-                                  ) : null}
-                                </>
-                              );
-                            }
-                            if (messageText.startsWith("Pipeline complete")) {
-                              const { main, meta } =
-                                splitCompletionMessage(messageText);
-                              return (
-                                <>
-                                  {main}
-                                  {meta ? (
-                                    <span className={styles.activityMeta}>
-                                      {" "}
-                                      {meta}
-                                    </span>
-                                  ) : null}
-                                </>
-                              );
-                            }
-                            return messageText;
-                          })()}
-                          {String(event.message ?? "").startsWith("Processing:") && (
-                            <span className={styles.loadingDots}>...</span>
-                          )}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                  <div ref={activityEndRef} />
-                </div>
-              </section>
+              <ActivityFeed
+                activity={activity}
+                activityEndRef={activityEndRef}
+                formatOutput={formatOutput}
+                splitProcessingMessage={splitProcessingMessage}
+                splitCompletionMessage={splitCompletionMessage}
+              />
             </div>
-            <section className={styles.panel}>
-              <div className={styles.panelTitle}>Pipeline</div>
-              <div className={styles.panelBody}>
-                {!selectedTool ? (
-                  <div className={styles.muted}>Select a tool to view pipeline.</div>
-                ) : (
-                  <div className={styles.pipelineList}>
-                    <div className={styles.pipelineRow}>
-                      <span
-                        className={`${styles.pipelineIndicator} ${styles.pipelineIndicatorIdle}`}
-                      />
-                      <div className={styles.pipelineMain}>
-                        <div className={styles.pipelineLabel}>INPUT</div>
-                        <div className={styles.pipelineOutput}>
-                          {formatPipelineValue(pipelineOutputs[PIPELINE_INPUT_KEY])}
-                        </div>
-                      </div>
-                    </div>
-                    {selectedTool.pipeline.map((step) => {
-                      const isActive = pipelineCurrentStepId === step.id;
-                      const isErrored = pipelineErrors[step.id];
-                      return (
-                        <div key={step.id} className={styles.pipelineRow}>
-                          <span
-                            className={`${styles.pipelineIndicator} ${
-                              isErrored
-                                ? styles.pipelineIndicatorError
-                                : isActive
-                                  ? styles.pipelineIndicatorActive
-                                  : styles.pipelineIndicatorIdle
-                            }`}
-                          />
-                          <div className={styles.pipelineMain}>
-                            <div className={styles.pipelineLabel}>
-                              {step.name}{" "}
-                              <span className={styles.pipelineKind}>
-                                {step.kind.toUpperCase()}
-                              </span>
-                            </div>
-                            <div className={styles.pipelineOutput}>
-                              {formatPipelineValue(pipelineOutputs[step.id])}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                    <div className={styles.pipelineRow}>
-                      <span
-                        className={`${styles.pipelineIndicator} ${styles.pipelineIndicatorIdle}`}
-                      />
-                      <div className={styles.pipelineMain}>
-                        <div className={styles.pipelineLabel}>OUTPUT</div>
-                        <div className={styles.pipelineOutput}>
-                          {formatPipelineValue(pipelineOutputs[PIPELINE_OUTPUT_KEY])}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </section>
+            <PipelinePanel
+              selectedTool={selectedTool}
+              pipelineOutputs={pipelineOutputs}
+              pipelineErrors={pipelineErrors}
+              pipelineCurrentStepId={pipelineCurrentStepId}
+              formatValue={formatPipelineValue}
+              inputKey={PIPELINE_INPUT_KEY}
+              outputKey={PIPELINE_OUTPUT_KEY}
+            />
           </div>
           {pendingDeleteStep && (
             <div className={styles.modalBackdrop} role="presentation">
@@ -1251,178 +764,44 @@ export default function App() {
       )}
 
       {activeTab === "settings" && (
-        <section className={styles.panelWide}>
-          <div className={styles.panelTitle}>LLM Providers</div>
-          <div className={styles.panelBody}>
-            <form className={styles.form} onSubmit={handleProviderSubmit}>
-              <div className={styles.field}>
-                <label className={styles.label}>Name</label>
-                <input
-                  className={styles.input}
-                  value={providerForm.name}
-                  onChange={(event) =>
-                    updateProviderForm({ name: event.target.value })
-                  }
-                  placeholder="Provider name"
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Vendor</label>
-                <select
-                  className={styles.input}
-                  value={providerForm.vendor}
-                  onChange={(event) => {
-                    const vendor = event.target.value;
-                    const option = providerOptions.find(
-                      (item) => item.value === vendor,
-                    );
-                    updateProviderForm({
-                      vendor,
-                      kind: option?.kind ?? providerForm.kind,
-                    });
-                  }}
-                >
-                  {providerOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>API Key</label>
-                <input
-                  className={styles.input}
-                  value={providerForm.apiKey}
-                  onChange={(event) =>
-                    updateProviderForm({ apiKey: event.target.value })
-                  }
-                  placeholder="Optional for local providers"
-                  type="password"
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Base URL</label>
-                <input
-                  className={styles.input}
-                  value={providerForm.baseUrl}
-                  onChange={(event) =>
-                    updateProviderForm({ baseUrl: event.target.value })
-                  }
-                  placeholder="http://localhost:11434"
-                />
-              </div>
-              <div className={styles.field}>
-                <label className={styles.label}>Model</label>
-                <input
-                  className={styles.input}
-                  value={providerForm.model}
-                  onChange={(event) =>
-                    updateProviderForm({ model: event.target.value })
-                  }
-                  placeholder="gpt-4o-mini / llama3.1"
-                  required
-                />
-              </div>
-              <button className={styles.button} type="submit">
-                {editingProviderId ? "Update Provider" : "Save Provider"}
-              </button>
-              {editingProviderId && (
-                <button
-                  className={styles.ghostButton}
-                  type="button"
-                  onClick={() => {
-                    setEditingProviderId(null);
-                    setProviderForm({
-                      name: "",
-                      vendor: "openai",
-                      kind: "cloud",
-                      apiKey: "",
-                      baseUrl: "",
-                      model: "",
-                      enabled: true,
-                    });
-                  }}
-                >
-                  Cancel
-                </button>
-              )}
-            </form>
-
-            <div className={styles.list}>
-              {!providers.some((provider) => provider.enabled) && (
-                <div className={styles.banner}>
-                  Configure at least one enabled provider to run tools.
-                </div>
-              )}
-              {providers.length === 0 ? (
-                <div className={styles.muted}>No providers configured.</div>
-              ) : (
-                providers.map((provider) => (
-                  <div key={provider.id} className={styles.row}>
-                    <label className={styles.radioLabel}>
-                      <input
-                        type="radio"
-                        name="defaultProvider"
-                        checked={provider.isDefault}
-                        onChange={() => handleSetDefaultProvider(provider.id)}
-                      />
-                      <span className={styles.radioText}>Default</span>
-                    </label>
-                    <label className={styles.checkboxLabel}>
-                      <input
-                        type="checkbox"
-                        checked={provider.enabled}
-                        onChange={(event) =>
-                          handleToggleEnabled(provider, event.target.checked)
-                        }
-                      />
-                      <span className={styles.radioText}>Enabled</span>
-                    </label>
-                    <div className={styles.rowMain}>
-                      <div className={styles.rowTitle}>{provider.name}</div>
-                      <div className={styles.rowMeta}>
-                        {provider.vendor} • {provider.kind} • {provider.model}
-                      </div>
-                    </div>
-                    <div className={styles.rowActions}>
-                      <button
-                        className={styles.ghostButton}
-                        type="button"
-                        onClick={() => handleTestProvider(provider)}
-                        disabled={providerTests[provider.id]?.status === "testing"}
-                      >
-                        {providerTests[provider.id]?.status === "testing"
-                          ? "Testing..."
-                          : "Test"}
-                      </button>
-                      <button
-                        className={styles.ghostButton}
-                        type="button"
-                        onClick={() => handleEditProvider(provider)}
-                      >
-                        Edit
-                      </button>
-                      <button
-                        className={styles.ghostButton}
-                        type="button"
-                        onClick={() => handleDeleteProvider(provider.id)}
-                      >
-                        Remove
-                      </button>
-                      {providerTests[provider.id]?.status === "ok" && (
-                        <span className={styles.providerTestOk}>OK</span>
-                      )}
-                      {providerTests[provider.id]?.status === "error" && (
-                        <span className={styles.providerTestError}>Failed</span>
-                      )}
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </div>
-        </section>
+        <ProvidersPanel
+          providerForm={providerForm}
+          providerOptions={providerOptions.map((option) => ({
+            value: option.value as ProviderConfig["vendor"],
+            label: option.label,
+          }))}
+          editingProviderId={editingProviderId}
+          providers={providers}
+          onSubmit={handleProviderSubmit}
+          onUpdateForm={updateProviderForm}
+          onEdit={handleEditProvider}
+          onDelete={handleDeleteProvider}
+          onSetDefault={handleSetDefaultProvider}
+          onToggleEnabled={handleToggleEnabled}
+          onCancelEdit={() => {
+            setEditingProviderId(null);
+            setProviderForm({
+              name: "",
+              vendor: "openai",
+              kind: "cloud",
+              apiKey: "",
+              baseUrl: "",
+              model: "",
+              enabled: true,
+            });
+          }}
+          onVendorChange={(vendor) => {
+            const option = providerOptions.find(
+              (item) => item.value === vendor,
+            );
+            updateProviderForm({
+              vendor,
+              kind: option?.kind ?? providerForm.kind,
+            });
+          }}
+          onTest={handleTestProvider}
+          providerTests={providerTests}
+        />
       )}
 
       <footer className={styles.statusBar}>
