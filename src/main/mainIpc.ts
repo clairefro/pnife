@@ -31,14 +31,6 @@ function now() {
   return Date.now();
 }
 
-function pickProviderId(pipeline: Pipeline, context: PnifeContext) {
-  const providerFromStep = pipeline.find((step) => step.kind === "transform")?.config?.providerId;
-  if (typeof providerFromStep === "string" && providerFromStep.length > 0) {
-    return providerFromStep;
-  }
-  return context.data?.providerId ?? null;
-}
-
 function normalizeBaseUrl(baseUrl: string | undefined, fallback: string) {
   const value = (baseUrl ?? fallback).replace(/\/+$/, "");
   return value;
@@ -124,14 +116,24 @@ async function runAiTextGen(
     runId
   });
 
-  const response = await fetch(url, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {})
-    },
-    body: JSON.stringify(body)
-  });
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {})
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    const isLocal = provider.vendor === "ollama" || provider.vendor === "lmstudio";
+    const detail = error instanceof Error ? error.message : String(error);
+    const message = isLocal
+      ? `Connection failed to ${baseUrl} (${provider.name}). Is the local server running?`
+      : `Request failed: ${detail}`;
+    throw new Error(message);
+  }
 
   if (!response.ok) {
     const text = await response.text();

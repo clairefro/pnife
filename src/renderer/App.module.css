@@ -83,6 +83,15 @@
   color: #bfbfbf;
 }
 
+.panelTitleAlt {
+  border-bottom: 1px solid #262626;
+  padding: 10px 12px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #bfbfbf;
+}
+
 .panelBody {
   padding: 14px;
   display: grid;
@@ -233,6 +242,273 @@
 .rowActions {
   display: flex;
   gap: 8px;
+}
+
+.toolsLayout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 16px;
+}
+
+.toolsListHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.toolsTestbench {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.testbenchActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.toolsList {
+  display: grid;
+  gap: 10px;
+}
+
+.stepsActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.dropdown {
+  position: relative;
+  display: inline-flex;
+}
+
+.dropdownMenu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  min-width: 140px;
+  z-index: 20;
+}
+
+.dropdownItem {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #d4d4d4;
+  padding: 6px 8px;
+  text-align: left;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dropdownItem:hover {
+  border-color: #3a3a3a;
+}
+
+.modalBackdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 5, 5, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+}
+
+.modal {
+  background: #0a0a0a;
+  border: 1px solid #262626;
+  padding: 16px;
+  width: min(420px, 90vw);
+  display: grid;
+  gap: 12px;
+}
+
+.modalTitle {
+  font-size: 13px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: #f2f2f2;
+}
+
+.modalBody {
+  font-size: 13px;
+  color: #cfcfcf;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.dangerButton {
+  background: #ff6b6b;
+  border: 1px solid #ff6b6b;
+  color: #0a0a0a;
+  padding: 6px 12px;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.toolRow {
+  border: 1px solid #262626;
+  background: #0a0a0a;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.toolRowActive {
+  border: 1px solid #6bb6ff;
+  background: #0a0a0a;
+  padding: 10px 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stepsPanel {
+  border: 1px solid #262626;
+  background: #0f0f0f;
+  display: flex;
+  flex-direction: column;
+}
+
+.stepCard {
+  border: 1px solid #262626;
+  background: #0a0a0a;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.stepCardStatic {
+  border: 1px solid #262626;
+  background: #0a0a0a;
+  padding: 10px 12px;
+}
+
+.stepCardDisabled {
+  opacity: 0.65;
+}
+
+.stepHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: transparent;
+  border: none;
+  color: inherit;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.stepHeader:focus-visible {
+  outline: 1px solid #6bb6ff;
+  outline-offset: 2px;
+}
+
+.stepHeaderStatic {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepHeaderActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.stepDelete {
+  background: transparent;
+  border: 1px solid #3a3a3a;
+  color: #ff8f8f;
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.stepDelete:hover {
+  border-color: #ff8f8f;
+}
+
+.stepName {
+  flex: 1;
+  font-size: 13px;
+}
+
+.stepChevron {
+  font-size: 16px;
+  color: #7f7f7f;
+}
+
+.stepEditor {
+  border-top: 1px solid #262626;
+  padding-top: 10px;
+  display: grid;
+  gap: 10px;
+}
+
+.stepToggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: #bfbfbf;
+}
+
+.stepField {
+  display: grid;
+  gap: 6px;
+}
+
+.stepFieldLabel {
+  font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #8f8f8f;
+}
+
+.stepFieldActions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.stepInput {
+  color: #f5a623;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+}
+
+.stepTransform {
+  color: #b388ff;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+}
+
+.stepOutput {
+  color: #6bff9d;
+  font-size: 11px;
+  letter-spacing: 0.6px;
+}
+
+.stepMissing {
+  color: #ff6b6b;
+  font-size: 11px;
+  letter-spacing: 0.6px;
 }
 
 .ghostButton {

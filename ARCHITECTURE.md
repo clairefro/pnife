@@ -6,7 +6,7 @@ Pnife is a minimalist, professional desktop utility for modular AI workflows. Us
 ## Core Concepts
 
 ### Pipeline Contract
-A Pipeline is an ordered array of Step objects. Each Step has a `kind`, `id`, `name`, `config`, and `enabled` flag.
+A Pipeline is an ordered array of Step IDs. Each Step has a `kind`, `id`, `name`, `config`, and `enabled` flag.
 
 ```ts
 export type PnifeAttachment = {
@@ -37,7 +37,7 @@ export type Step = {
   config: Record<string, unknown>;
 };
 
-export type Pipeline = Step[];
+export type Pipeline = string[]; // Ordered list of Step IDs
 ```
 
 ### Data Handshake
@@ -56,6 +56,7 @@ Steps are pure functions from `(context, stepConfig) -> context`, with side effe
 - clipboard-read (via `nut.js`)
 - file-read
 - ui-text
+ - **Current MVP:** test bench input only
 
 **Transformation (process data):**
 - LLM via provider adapters using OpenAI-compatible endpoints
@@ -66,6 +67,7 @@ Steps are pure functions from `(context, stepConfig) -> context`, with side effe
 - clipboard-write
 - system-notification
 - ui-display
+ - **Current MVP:** test bench output only
 
 ### Process Bridge
 - **Main Process:** Executes AI and I/O logic, pipeline execution, provider access, and secure credential storage.
@@ -84,6 +86,12 @@ Provider metadata is stored in a **SQLite database** under app data. API keys ar
 
 ### Provider Reference
 Transformation steps store a `providerId` and `model` in `config`. If a step does not specify a provider, the **default provider** is used. If the default provider is disabled, execution must error.
+
+## Tools & Steps Storage
+- Tools are persisted in `tools.json` under app data.
+- Steps are persisted separately in `steps.json`, grouped by type: `input`, `transform`, `output`.
+- Each tool’s `pipeline` is an **ordered array of Step IDs**, not inline Step objects.
+- Steps are resolved at runtime in the main process before execution.
 
 ## Launcher & Shortcut Logic
 - Leader key: `Alt+Space` toggles the centered launcher overlay.

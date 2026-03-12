@@ -1,8 +1,8 @@
 import { app } from "electron";
 import fs from "node:fs";
 import path from "node:path";
-import { ToolDefinition } from "../shared/tools";
-import { starterTools } from "../shared/tools";
+import { ToolDefinition, starterTools } from "../shared/tools";
+import { Step } from "../shared/types";
 
 const FILE_NAME = "tools.json";
 
@@ -10,33 +10,74 @@ function getToolsPath() {
   return path.join(app.getPath("userData"), FILE_NAME);
 }
 
+function isStepObject(value: unknown): value is Step {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "id" in value &&
+    "name" in value &&
+    "kind" in value
+  );
+}
+
+function normalizeStep(step: Step): Step {
+  const config = { ...(step.config ?? {}) } as Record<string, unknown>;
+  if (config.providerId === "provider_mock") {
+    delete config.providerId;
+  }
+  return {
+    id: step.id,
+    name: step.name,
+    kind: step.kind,
+    enabled: step.enabled ?? true,
+    config
+  };
+}
+
 function normalizeTools(tools: ToolDefinition[]) {
-  return tools.map((tool) => ({
-    ...tool,
-    pipeline: tool.pipeline.map((step) => {
-      if (step.config && typeof step.config === "object") {
-        const config = { ...step.config } as Record<string, unknown>;
-        if (config.providerId === "provider_mock") {
-          delete config.providerId;
+  let shouldReset = false;
+  const normalized = tools.map((tool) => {
+    const pipeline = tool.pipeline
+      .map((step) => {
+        if (!isStepObject(step)) {
+          shouldReset = true;
+          return null;
         }
-        return { ...step, config };
-      }
-      return step;
-    })
-  }));
+        return normalizeStep(step);
+      })
+      .filter((step): step is Step => Boolean(step));
+    return { ...tool, pipeline };
+  });
+
+  return { tools: normalized, shouldReset };
 }
 
 function readTools(): ToolDefinition[] {
   const filePath = getToolsPath();
   if (!fs.existsSync(filePath)) {
-    return normalizeTools([...starterTools]);
+    const seeded = normalizeTools([...starterTools]).tools;
+    writeTools(seeded);
+    return seeded;
   }
   const raw = fs.readFileSync(filePath, "utf-8");
   try {
     const data = JSON.parse(raw) as ToolDefinition[];
-    return Array.isArray(data) ? normalizeTools(data) : normalizeTools([...starterTools]);
+    if (!Array.isArray(data)) {
+      const seeded = normalizeTools([...starterTools]).tools;
+      writeTools(seeded);
+      return seeded;
+    }
+    const normalized = normalizeTools(data);
+    if (normalized.shouldReset) {
+      const seeded = normalizeTools([...starterTools]).tools;
+      writeTools(seeded);
+      return seeded;
+    }
+    return normalized.tools;
   } catch {
-    return normalizeTools([...starterTools]);
+    const seeded = normalizeTools([...starterTools]).tools;
+    writeTools(seeded);
+    return seeded;
   }
 }
 
@@ -57,6 +98,6 @@ export function saveTools(tools: ToolDefinition[]) {
 export function ensureToolsSeeded() {
   const filePath = getToolsPath();
   if (!fs.existsSync(filePath)) {
-    writeTools(normalizeTools(starterTools));
+    writeTools(normalizeTools(starterTools).tools);
   }
 }

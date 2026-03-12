@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import styles from "./App.module.css";
 import { ToolDefinition } from "../shared/tools";
-import { ProviderConfig, ProviderKind } from "../shared/types";
+import { ProviderConfig, ProviderKind, Step } from "../shared/types";
 
 export default function App() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
+  const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
+  const [stepPromptDrafts, setStepPromptDrafts] = useState<Record<string, string>>({});
   const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"run" | "tools" | "settings">("run");
+  const [activeTab, setActiveTab] = useState<"run" | "tools" | "settings">("tools");
+  const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [inputText, setInputText] = useState(
     "This is a test paragraph about Pnife. It should be summarized into a shorter, clearer sentence without losing the core meaning or tone."
   );
@@ -24,6 +27,9 @@ export default function App() {
     model: "",
     enabled: true
   });
+  const [dragStepId, setDragStepId] = useState<string | null>(null);
+  const [showAddStepMenu, setShowAddStepMenu] = useState(false);
+  const [pendingDeleteStep, setPendingDeleteStep] = useState<Step | null>(null);
 
   useEffect(() => {
     if (!window.pnife?.tools) {
@@ -74,6 +80,11 @@ export default function App() {
     []
   );
 
+  const selectedTool = useMemo(
+    () => tools.find((tool) => tool.id === selectedToolId) ?? null,
+    [tools, selectedToolId]
+  );
+
   const defaultProvider = useMemo(
     () => providers.find((provider) => provider.isDefault),
     [providers]
@@ -81,6 +92,164 @@ export default function App() {
 
   function updateProviderForm(next: Partial<typeof providerForm>) {
     setProviderForm((prev) => ({ ...prev, ...next }));
+  }
+
+  async function persistTools(nextTools: ToolDefinition[]) {
+    setTools(nextTools);
+    if (!window.pnife?.tools) {
+      return;
+    }
+    const saved = await window.pnife.tools.save(nextTools);
+    setTools(saved);
+  }
+
+  function updateToolStep(
+    toolId: string,
+    stepId: string,
+    updater: (step: Step) => Step
+  ): ToolDefinition[] {
+    return tools.map((tool) => {
+      if (tool.id !== toolId) {
+        return tool;
+      }
+      return {
+        ...tool,
+        pipeline: tool.pipeline.map((step) =>
+          step.id === stepId ? updater(step) : step
+        )
+      };
+    });
+  }
+
+  async function handleToggleStepEnabled(toolId: string, stepId: string, enabled: boolean) {
+    const nextTools = updateToolStep(toolId, stepId, (step) => ({ ...step, enabled }));
+    await persistTools(nextTools);
+  }
+
+  async function handleSaveStepPrompt(toolId: string, step: Step, prompt: string) {
+    const nextTools = updateToolStep(toolId, step.id, (item) => ({
+      ...item,
+      config: { ...item.config, prompt }
+    }));
+    await persistTools(nextTools);
+  }
+
+  async function handleSaveStepName(toolId: string, step: Step, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      return;
+    }
+    const nextTools = updateToolStep(toolId, step.id, (item) => ({ ...item, name: trimmed }));
+    await persistTools(nextTools);
+  }
+
+  async function handleSaveStepConfigType(toolId: string, step: Step, typeValue: string) {
+    const trimmed = typeValue.trim();
+    if (!trimmed) {
+      return;
+    }
+    const nextTools = updateToolStep(toolId, step.id, (item) => ({
+      ...item,
+      config: { ...item.config, type: trimmed }
+    }));
+    await persistTools(nextTools);
+  }
+
+  async function handleSaveStepMode(toolId: string, step: Step, mode: string) {
+    const nextTools = updateToolStep(toolId, step.id, (item) => ({
+      ...item,
+      config: { ...item.config, mode }
+    }));
+    await persistTools(nextTools);
+  }
+
+  function handleToggleStepEdit(step: Step) {
+    setExpandedStepId((prev) => (prev === step.id ? null : step.id));
+    const currentPrompt =
+      typeof step.config?.prompt === "string" ? step.config.prompt : undefined;
+    if (currentPrompt !== undefined) {
+      setStepPromptDrafts((prev) =>
+        prev[step.id] === undefined ? { ...prev, [step.id]: currentPrompt } : prev
+      );
+    }
+  }
+
+  function createStepDefaults(kind: "transform" | "output"): Step {
+    const id = `step_${kind}_${Date.now()}`;
+    if (kind === "transform") {
+      return {
+        id,
+        name: "New Transform",
+        kind,
+        enabled: true,
+        config: { type: "ai-text-gen", prompt: "" }
+      };
+    }
+    return {
+      id,
+      name: "New Output",
+      kind,
+      enabled: true,
+      config: { type: "custom-output" }
+    };
+  }
+
+  async function handleAddTool() {
+    const id = `tool_${Date.now()}`;
+    const nextTool: ToolDefinition = {
+      id,
+      name: "Untitled Tool",
+      description: "",
+      pipeline: []
+    };
+    const nextTools = [...tools, nextTool];
+    await persistTools(nextTools);
+    setSelectedToolId(id);
+  }
+
+  async function handleAddStep(kind: "transform" | "output") {
+    if (!selectedTool) {
+      return;
+    }
+    const nextStep = createStepDefaults(kind);
+    const nextTools = tools.map((tool) => {
+      if (tool.id !== selectedTool.id) {
+        return tool;
+      }
+      return { ...tool, pipeline: [...tool.pipeline, nextStep] };
+    });
+    await persistTools(nextTools);
+  }
+
+  async function handleDeleteStep(step: Step) {
+    if (!selectedTool) {
+      return;
+    }
+    const nextTools = tools.map((tool) =>
+      tool.id === selectedTool.id
+        ? { ...tool, pipeline: tool.pipeline.filter((item) => item.id !== step.id) }
+        : tool
+    );
+    await persistTools(nextTools);
+    setExpandedStepId((prev) => (prev === step.id ? null : prev));
+  }
+
+  async function handleReorderStep(tool: ToolDefinition, fromId: string, toId: string) {
+    if (fromId === toId) {
+      return;
+    }
+    const nextPipeline = [...tool.pipeline];
+    const fromIndex = nextPipeline.findIndex((step) => step.id === fromId);
+    const toIndex = nextPipeline.findIndex((step) => step.id === toId);
+    if (fromIndex === -1 || toIndex === -1) {
+      return;
+    }
+    const [moved] = nextPipeline.splice(fromIndex, 1);
+    nextPipeline.splice(toIndex, 0, moved);
+    const nextTools = tools.map((item) =>
+      item.id === tool.id ? { ...item, pipeline: nextPipeline } : item
+    );
+    await persistTools(nextTools);
   }
 
   async function refreshProviders() {
@@ -256,7 +425,9 @@ export default function App() {
                   <div key={tool.id} className={styles.cardRow}>
                     <div>
                       <div className={styles.cardTitle}>{tool.name}</div>
-                      <div className={styles.cardMeta}>{tool.pipeline.length} steps</div>
+                      <div className={styles.cardMeta}>
+                        {tool.pipeline.length} steps
+                      </div>
                     </div>
                     <button className={styles.ghostButton} onClick={() => handleRunTool(tool)}>
                       Run
@@ -348,20 +519,412 @@ export default function App() {
             {tools.length === 0 ? (
               <div className={styles.muted}>No tools loaded.</div>
             ) : (
-              <div className={styles.list}>
-                {tools.map((tool) => (
-                  <div key={tool.id} className={styles.row}>
-                    <div className={styles.rowMain}>
-                      <div className={styles.rowTitle}>{tool.name}</div>
-                      <div className={styles.rowMeta}>
-                        {tool.pipeline.length} steps • {tool.description}
+              <div className={styles.toolsLayout}>
+                <div className={styles.toolsList}>
+                  <div className={styles.toolsListHeader}>
+                    <div className={styles.rowTitle}>Tools</div>
+                    <button className={styles.ghostButton} type="button" onClick={handleAddTool}>
+                      Add Tool
+                    </button>
+                  </div>
+                  {tools.map((tool) => (
+                    <button
+                      key={tool.id}
+                      className={
+                        selectedToolId === tool.id ? styles.toolRowActive : styles.toolRow
+                      }
+                      onClick={() => setSelectedToolId(tool.id)}
+                    >
+                      <div className={styles.rowMain}>
+                        <div className={styles.rowTitle}>{tool.name}</div>
+                        <div className={styles.rowMeta}>
+                          {tool.pipeline.length} steps • {tool.description}
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.stepsPanel}>
+                  <div className={styles.panelTitleAlt}>Steps</div>
+                  <div className={styles.panelBody}>
+                    <div className={styles.stepsActions}>
+                      <div className={styles.dropdown}>
+                        <button
+                          className={styles.ghostButton}
+                          type="button"
+                          onClick={() => setShowAddStepMenu((prev) => !prev)}
+                          disabled={!selectedTool}
+                        >
+                          Add Step ▾
+                        </button>
+                        {showAddStepMenu && selectedTool && (
+                          <div className={styles.dropdownMenu}>
+                            <button
+                              className={styles.dropdownItem}
+                              type="button"
+                              onClick={() => {
+                                handleAddStep("transform");
+                                setShowAddStepMenu(false);
+                              }}
+                            >
+                              Transform
+                            </button>
+                            <button
+                              className={styles.dropdownItem}
+                              type="button"
+                              onClick={() => {
+                                handleAddStep("output");
+                                setShowAddStepMenu(false);
+                              }}
+                            >
+                              Output
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
+                    {selectedTool ? (
+                      (() => {
+                        const orderedSteps = selectedTool.pipeline;
+
+                        return (
+                          <>
+                            <div className={styles.stepCardStatic}>
+                              <div className={styles.stepHeaderStatic}>
+                                <span className={styles.stepInput}>INPUT</span>
+                                <span className={styles.stepName}>
+                                  Input
+                                </span>
+                              </div>
+                            </div>
+
+                            {orderedSteps.length === 0 ? (
+                              <div className={styles.muted}>No steps in this tool.</div>
+                            ) : (
+                              orderedSteps.map((step) => {
+                                const isExpanded = expandedStepId === step.id;
+                                const currentPrompt =
+                                  typeof step.config?.prompt === "string"
+                                    ? step.config.prompt
+                                    : "";
+                                const promptValue = stepPromptDrafts[step.id] ?? currentPrompt;
+                                const hasPrompt =
+                                  step.kind === "transform" ||
+                                  typeof step.config?.prompt === "string";
+                                const typeValue =
+                                  typeof step.config?.type === "string" ? step.config.type : "";
+                                const modeValue =
+                                  typeof step.config?.mode === "string"
+                                    ? step.config.mode
+                                    : "prompt";
+                                return (
+                                  <div
+                                    key={step.id}
+                                    className={`${styles.stepCard} ${
+                                      step.enabled ? "" : styles.stepCardDisabled
+                                    }`}
+                                    draggable
+                                    onDragStart={() => setDragStepId(step.id)}
+                                    onDragEnd={() => setDragStepId(null)}
+                                    onDragOver={(event) => event.preventDefault()}
+                                    onDrop={() => {
+                                      if (dragStepId && selectedTool) {
+                                        handleReorderStep(selectedTool, dragStepId, step.id);
+                                        setDragStepId(null);
+                                      }
+                                    }}
+                                  >
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
+                                      className={styles.stepHeader}
+                                      onClick={() => handleToggleStepEdit(step)}
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                          event.preventDefault();
+                                          handleToggleStepEdit(step);
+                                        }
+                                      }}
+                                      aria-expanded={isExpanded}
+                                    >
+                                      <span
+                                        className={
+                                          step.kind === "output"
+                                            ? styles.stepOutput
+                                            : styles.stepTransform
+                                        }
+                                      >
+                                        {step.kind.toUpperCase()}
+                                      </span>
+                                      <span className={styles.stepName}>{step.name}</span>
+                                      <span className={styles.stepHeaderActions}>
+                                        <button
+                                          type="button"
+                                          className={styles.stepDelete}
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            setPendingDeleteStep(step);
+                                          }}
+                                        >
+                                          Delete
+                                        </button>
+                                        <span className={styles.stepChevron}>
+                                          {isExpanded ? "–" : "+"}
+                                        </span>
+                                      </span>
+                                    </div>
+                                    {isExpanded && (
+                                      <div className={styles.stepEditor}>
+                                        <div className={styles.stepField}>
+                                          <div className={styles.stepFieldLabel}>Name</div>
+                                          <input
+                                            className={styles.input}
+                                            defaultValue={step.name}
+                                            onBlur={(event) =>
+                                              selectedTool
+                                                ? handleSaveStepName(
+                                                    selectedTool.id,
+                                                    step,
+                                                    event.target.value
+                                                  )
+                                                : undefined
+                                            }
+                                          />
+                                        </div>
+                                        <label className={styles.stepToggle}>
+                                          <input
+                                            type="checkbox"
+                                            checked={step.enabled}
+                                            onChange={(event) =>
+                                              selectedTool
+                                                ? handleToggleStepEnabled(
+                                                    selectedTool.id,
+                                                    step.id,
+                                                    event.target.checked
+                                                  )
+                                                : undefined
+                                            }
+                                          />
+                                          <span>Enabled</span>
+                                        </label>
+                                        {step.kind === "transform" ? (
+                                          <div className={styles.stepField}>
+                                            <div className={styles.stepFieldLabel}>Type</div>
+                                            <select
+                                              className={styles.input}
+                                              value={modeValue}
+                                              onChange={(event) =>
+                                                selectedTool
+                                                  ? handleSaveStepMode(
+                                                      selectedTool.id,
+                                                      step,
+                                                      event.target.value
+                                                    )
+                                                  : undefined
+                                              }
+                                            >
+                                              <option value="prompt">Prompt</option>
+                                              <option value="structured-data">Structured Data</option>
+                                            </select>
+                                          </div>
+                                        ) : (
+                                          <div className={styles.stepField}>
+                                            <div className={styles.stepFieldLabel}>Type</div>
+                                            <input
+                                              className={styles.input}
+                                              defaultValue={typeValue}
+                                              onBlur={(event) =>
+                                                selectedTool
+                                                  ? handleSaveStepConfigType(
+                                                      selectedTool.id,
+                                                      step,
+                                                      event.target.value
+                                                    )
+                                                  : undefined
+                                              }
+                                            />
+                                          </div>
+                                        )}
+                                        {hasPrompt && (
+                                          <div className={styles.stepField}>
+                                            <div className={styles.stepFieldLabel}>Prompt</div>
+                                            <textarea
+                                              className={styles.textarea}
+                                              value={promptValue}
+                                              onChange={(event) =>
+                                                setStepPromptDrafts((prev) => ({
+                                                  ...prev,
+                                                  [step.id]: event.target.value
+                                                }))
+                                              }
+                                              rows={3}
+                                            />
+                                            <div className={styles.stepFieldActions}>
+                                              <button
+                                                type="button"
+                                                className={styles.ghostButton}
+                                                onClick={() =>
+                                                  selectedTool
+                                                    ? handleSaveStepPrompt(
+                                                        selectedTool.id,
+                                                        step,
+                                                        promptValue
+                                                      )
+                                                    : undefined
+                                                }
+                                                disabled={promptValue === currentPrompt}
+                                              >
+                                                Save Prompt
+                                              </button>
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })
+                            )}
+
+                            <div className={styles.stepCardStatic}>
+                              <div className={styles.stepHeaderStatic}>
+                                <span className={styles.stepOutput}>OUT</span>
+                                <span className={styles.stepName}>
+                                  Output
+                                </span>
+                              </div>
+                            </div>
+                          </>
+                        );
+                      })()
+                    ) : (
+                      <div className={styles.muted}>Select a tool to view steps.</div>
+                    )}
                   </div>
-                ))}
+                </div>
               </div>
             )}
+            <div className={styles.toolsTestbench}>
+              <section className={styles.panel}>
+                <div className={styles.panelTitle}>Test Bench</div>
+                <div className={styles.panelBody}>
+                  <textarea
+                    className={styles.textarea}
+                    value={inputText}
+                    onChange={(event) => setInputText(event.target.value)}
+                  />
+                  <div className={styles.testbenchActions}>
+                    <button
+                      className={styles.ghostButton}
+                      type="button"
+                      disabled={!selectedTool}
+                      onClick={() => {
+                        if (selectedTool) {
+                          handleRunTool(selectedTool);
+                        }
+                      }}
+                    >
+                      {selectedTool ? `Run ${selectedTool.name}` : "Select a tool to run"}
+                    </button>
+                  </div>
+                  <div className={styles.output}>
+                    {lastOutput ? lastOutput : "Run a tool to see output."}
+                  </div>
+                </div>
+              </section>
+
+              <section className={styles.panel}>
+                <div className={styles.panelTitle}>Activity Feed</div>
+                <div className={styles.panelBody}>
+                  {activity.length === 0 ? (
+                    <div className={styles.muted}>No activity yet.</div>
+                  ) : (
+                    activity.map((event) => (
+                      <div key={event.id} className={styles.activityItem}>
+                        <span
+                          className={
+                            event.type === "error"
+                              ? styles.activityError
+                              : event.type === "stream"
+                              ? styles.activityOutput
+                              : styles.activityInfo
+                          }
+                        >
+                          {event.type === "error"
+                            ? "[ERROR]"
+                            : event.type === "stream"
+                            ? "[OUTPUT]"
+                            : "[INFO]"}
+                        </span>{" "}
+                        <span className={styles.activityText}>
+                          {event.type === "stream"
+                            ? `Output: ${formatOutput(event.message)}`
+                            : event.message.startsWith("Processing:")
+                            ? (() => {
+                                const { main, meta } = splitProcessingMessage(event.message);
+                                return (
+                                  <>
+                                    {main}
+                                    {meta ? (
+                                      <span className={styles.activityMeta}> {meta}</span>
+                                    ) : null}
+                                  </>
+                                );
+                              })()
+                            : event.message.startsWith("Pipeline complete")
+                            ? (() => {
+                                const { main, meta } = splitCompletionMessage(event.message);
+                                return (
+                                  <>
+                                    {main}
+                                    {meta ? (
+                                      <span className={styles.activityMeta}> {meta}</span>
+                                    ) : null}
+                                  </>
+                                );
+                              })()
+                            : event.message}
+                          {event.message.startsWith("Processing:") && (
+                            <span className={styles.loadingDots}>...</span>
+                          )}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                  <div ref={activityEndRef} />
+                </div>
+              </section>
+            </div>
           </div>
+          {pendingDeleteStep && (
+            <div className={styles.modalBackdrop} role="presentation">
+              <div className={styles.modal} role="dialog" aria-modal="true">
+                <div className={styles.modalTitle}>Delete Step</div>
+                <div className={styles.modalBody}>
+                  Delete “{pendingDeleteStep.name}”? This will remove it from all tools.
+                </div>
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.ghostButton}
+                    onClick={() => setPendingDeleteStep(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.dangerButton}
+                    onClick={() => {
+                      handleDeleteStep(pendingDeleteStep);
+                      setPendingDeleteStep(null);
+                    }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

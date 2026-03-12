@@ -1,18 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.starterTools = void 0;
-const baseInput = {
-    kind: "input",
-    enabled: true
-};
-const baseTransform = {
-    kind: "transform",
-    enabled: true
-};
-const baseOutput = {
-    kind: "output",
-    enabled: true
-};
 exports.starterTools = [
     {
         id: "tool_summarize",
@@ -21,25 +9,11 @@ exports.starterTools = [
         shortcut: "S",
         pipeline: [
             {
-                id: "step_input_clipboard",
-                name: "Clipboard Read",
-                ...baseInput,
-                config: { type: "clipboard-read" }
-            },
-            {
                 id: "step_transform_summarize",
                 name: "Summarize",
-                ...baseTransform,
-                config: {
-                    type: "ai-text-gen",
-                    prompt: "Summarize the following text."
-                }
-            },
-            {
-                id: "step_output_ui",
-                name: "UI Display",
-                ...baseOutput,
-                config: { type: "ui-display" }
+                kind: "transform",
+                enabled: true,
+                config: { type: "ai-text-gen", prompt: "Summarize the following text." }
             }
         ]
     },
@@ -50,26 +24,11 @@ exports.starterTools = [
         shortcut: "G",
         pipeline: [
             {
-                id: "step_input_clipboard",
-                name: "Clipboard Read",
-                ...baseInput,
-                config: { type: "clipboard-read" }
-            },
-            {
                 id: "step_transform_grammar",
                 name: "Fix Grammar",
-                ...baseTransform,
-                config: {
-                    type: "ai-text-gen",
-                    providerId: "provider_mock",
-                    prompt: "Fix grammar and spelling without changing meaning."
-                }
-            },
-            {
-                id: "step_output_ui",
-                name: "UI Display",
-                ...baseOutput,
-                config: { type: "ui-display" }
+                kind: "transform",
+                enabled: true,
+                config: { type: "ai-text-gen", prompt: "Fix grammar and spelling without changing meaning." }
             }
         ]
     },
@@ -80,24 +39,11 @@ exports.starterTools = [
         shortcut: "J",
         pipeline: [
             {
-                id: "step_input_clipboard",
-                name: "Clipboard Read",
-                ...baseInput,
-                config: { type: "clipboard-read" }
-            },
-            {
                 id: "step_transform_json",
                 name: "Extract JSON",
-                ...baseTransform,
-                config: {
-                    type: "json-extract"
-                }
-            },
-            {
-                id: "step_output_ui",
-                name: "UI Display",
-                ...baseOutput,
-                config: { type: "ui-display" }
+                kind: "transform",
+                enabled: true,
+                config: { type: "json-extract" }
             }
         ]
     }

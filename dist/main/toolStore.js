@@ -14,33 +14,69 @@ const FILE_NAME = "tools.json";
 function getToolsPath() {
     return node_path_1.default.join(electron_1.app.getPath("userData"), FILE_NAME);
 }
+function isStepObject(value) {
+    return (typeof value === "object" &&
+        value !== null &&
+        "id" in value &&
+        "name" in value &&
+        "kind" in value);
+}
+function normalizeStep(step) {
+    const config = { ...(step.config ?? {}) };
+    if (config.providerId === "provider_mock") {
+        delete config.providerId;
+    }
+    return {
+        id: step.id,
+        name: step.name,
+        kind: step.kind,
+        enabled: step.enabled ?? true,
+        config
+    };
+}
 function normalizeTools(tools) {
-    return tools.map((tool) => ({
-        ...tool,
-        pipeline: tool.pipeline.map((step) => {
-            if (step.config && typeof step.config === "object") {
-                const config = { ...step.config };
-                if (config.providerId === "provider_mock") {
-                    delete config.providerId;
-                }
-                return { ...step, config };
+    let shouldReset = false;
+    const normalized = tools.map((tool) => {
+        const pipeline = tool.pipeline
+            .map((step) => {
+            if (!isStepObject(step)) {
+                shouldReset = true;
+                return null;
             }
-            return step;
+            return normalizeStep(step);
         })
-    }));
+            .filter((step) => Boolean(step));
+        return { ...tool, pipeline };
+    });
+    return { tools: normalized, shouldReset };
 }
 function readTools() {
     const filePath = getToolsPath();
     if (!node_fs_1.default.existsSync(filePath)) {
-        return normalizeTools([...tools_1.starterTools]);
+        const seeded = normalizeTools([...tools_1.starterTools]).tools;
+        writeTools(seeded);
+        return seeded;
     }
     const raw = node_fs_1.default.readFileSync(filePath, "utf-8");
     try {
         const data = JSON.parse(raw);
-        return Array.isArray(data) ? normalizeTools(data) : normalizeTools([...tools_1.starterTools]);
+        if (!Array.isArray(data)) {
+            const seeded = normalizeTools([...tools_1.starterTools]).tools;
+            writeTools(seeded);
+            return seeded;
+        }
+        const normalized = normalizeTools(data);
+        if (normalized.shouldReset) {
+            const seeded = normalizeTools([...tools_1.starterTools]).tools;
+            writeTools(seeded);
+            return seeded;
+        }
+        return normalized.tools;
     }
     catch {
-        return normalizeTools([...tools_1.starterTools]);
+        const seeded = normalizeTools([...tools_1.starterTools]).tools;
+        writeTools(seeded);
+        return seeded;
     }
 }
 function writeTools(tools) {
@@ -57,6 +93,6 @@ function saveTools(tools) {
 function ensureToolsSeeded() {
     const filePath = getToolsPath();
     if (!node_fs_1.default.existsSync(filePath)) {
-        writeTools(normalizeTools(tools_1.starterTools));
+        writeTools(normalizeTools(tools_1.starterTools).tools);
     }
 }
