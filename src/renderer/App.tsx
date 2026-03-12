@@ -74,6 +74,11 @@ export default function App() {
     []
   );
 
+  const defaultProvider = useMemo(
+    () => providers.find((provider) => provider.isDefault),
+    [providers]
+  );
+
   function updateProviderForm(next: Partial<typeof providerForm>) {
     setProviderForm((prev) => ({ ...prev, ...next }));
   }
@@ -204,6 +209,14 @@ export default function App() {
     };
   }
 
+  function splitCompletionMessage(message: string) {
+    const parts = message.split(" | ");
+    return {
+      main: parts[0] ?? message,
+      meta: parts.length > 1 ? parts.slice(1).join(" | ") : ""
+    };
+  }
+
   return (
     <div className={styles.app}>
       <header className={styles.header}>
@@ -304,6 +317,16 @@ export default function App() {
                             </>
                           );
                         })()
+                      : event.message.startsWith("Pipeline complete")
+                      ? (() => {
+                          const { main, meta } = splitCompletionMessage(event.message);
+                          return (
+                            <>
+                              {main}
+                              {meta ? <span className={styles.activityMeta}> {meta}</span> : null}
+                            </>
+                          );
+                        })()
                       : event.message}
                     {event.message.startsWith("Processing:") && (
                       <span className={styles.loadingDots}>...</span>
@@ -322,7 +345,22 @@ export default function App() {
         <section className={styles.panelWide}>
           <div className={styles.panelTitle}>Tools</div>
           <div className={styles.panelBody}>
-            <div className={styles.muted}>Pipeline editor coming next.</div>
+            {tools.length === 0 ? (
+              <div className={styles.muted}>No tools loaded.</div>
+            ) : (
+              <div className={styles.list}>
+                {tools.map((tool) => (
+                  <div key={tool.id} className={styles.row}>
+                    <div className={styles.rowMain}>
+                      <div className={styles.rowTitle}>{tool.name}</div>
+                      <div className={styles.rowMeta}>
+                        {tool.pipeline.length} steps • {tool.description}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </section>
       )}
@@ -468,6 +506,12 @@ export default function App() {
           </div>
         </section>
       )}
+
+      <footer className={styles.statusBar}>
+        <span className={styles.statusText}>
+          Default Model: {defaultProvider ? `${defaultProvider.name} • ${defaultProvider.model}` : "None"}
+        </span>
+      </footer>
     </div>
   );
 }

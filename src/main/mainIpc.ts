@@ -164,6 +164,7 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
 
   ipcMain.handle("pnife:pipeline:run", async (_event, pipeline: Pipeline, context: PnifeContext) => {
     const runId = `run_${now()}`;
+    const startedAt = now();
 
     const providers = await listProviders();
     const hasEnabledProvider = providers.some((item) => item.enabled);
@@ -253,11 +254,18 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
     emitActivity(win, {
       id: `evt_${now()}`,
       type: "info",
-      message: "Pipeline complete",
+      message: `Pipeline complete | ${formatElapsed(now() - startedAt)}`,
       timestamp: now(),
       runId
     });
 
     return { runId, context: updated };
   });
+}
+
+function formatElapsed(ms: number) {
+  if (ms < 1000) {
+    return `${ms} ms`;
+  }
+  return `${(ms / 1000).toFixed(1)} s`;
 }

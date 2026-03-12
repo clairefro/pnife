@@ -115,6 +115,7 @@ function createMainIpc({ ipcMain, win }) {
     ipcMain.handle("pnife:tools:save", (_event, tools) => (0, toolStore_1.saveTools)(tools));
     ipcMain.handle("pnife:pipeline:run", async (_event, pipeline, context) => {
         const runId = `run_${now()}`;
+        const startedAt = now();
         const providers = await (0, providerStore_1.listProviders)();
         const hasEnabledProvider = providers.some((item) => item.enabled);
         if (!hasEnabledProvider) {
@@ -200,10 +201,16 @@ function createMainIpc({ ipcMain, win }) {
         emitActivity(win, {
             id: `evt_${now()}`,
             type: "info",
-            message: "Pipeline complete",
+            message: `Pipeline complete | ${formatElapsed(now() - startedAt)}`,
             timestamp: now(),
             runId
         });
         return { runId, context: updated };
     });
+}
+function formatElapsed(ms) {
+    if (ms < 1000) {
+        return `${ms} ms`;
+    }
+    return `${(ms / 1000).toFixed(1)} s`;
 }
