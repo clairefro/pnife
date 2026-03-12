@@ -6,7 +6,8 @@ electron_1.contextBridge.exposeInMainWorld("pnife", {
         list: () => electron_1.ipcRenderer.invoke("pnife:providers:list"),
         upsert: (provider) => electron_1.ipcRenderer.invoke("pnife:providers:upsert", provider),
         delete: (id) => electron_1.ipcRenderer.invoke("pnife:providers:delete", id),
-        setDefault: (id) => electron_1.ipcRenderer.invoke("pnife:providers:setDefault", id)
+        setDefault: (id) => electron_1.ipcRenderer.invoke("pnife:providers:setDefault", id),
+        test: (id) => electron_1.ipcRenderer.invoke("pnife:providers:test", id)
     },
     tools: {
         list: () => electron_1.ipcRenderer.invoke("pnife:tools:list"),

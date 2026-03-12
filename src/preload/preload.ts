@@ -8,6 +8,10 @@ type ActivityEvent = {
   message: string;
   timestamp: number;
   runId?: string;
+  stepId?: string;
+  stepName?: string;
+  stepStatus?: "started" | "completed" | "errored";
+  output?: string;
 };
 
 contextBridge.exposeInMainWorld("pnife", {
@@ -18,7 +22,11 @@ contextBridge.exposeInMainWorld("pnife", {
     delete: (id: string): Promise<{ deleted: boolean }> =>
       ipcRenderer.invoke("pnife:providers:delete", id),
     setDefault: (id: string): Promise<ProviderConfig[]> =>
-      ipcRenderer.invoke("pnife:providers:setDefault", id)
+      ipcRenderer.invoke("pnife:providers:setDefault", id),
+    test: (
+      id: string
+    ): Promise<{ ok: boolean; output?: string; error?: string }> =>
+      ipcRenderer.invoke("pnife:providers:test", id)
   },
   tools: {
     list: (): Promise<ToolDefinition[]> => ipcRenderer.invoke("pnife:tools:list"),

@@ -1,5 +1,5 @@
 import { IpcMain, BrowserWindow } from "electron";
-import { Pipeline, PnifeContext } from "../shared/types";
+import { Pipeline, PnifeContext, ProviderConfig } from "../shared/types";
 import { listTools, saveTools } from "./toolStore";
 import { listProviders, upsertProvider, deleteProvider, getProviderSecret, setDefaultProvider } from "./providerStore";
 
@@ -21,6 +21,10 @@ type ActivityEvent = {
   message: string;
   timestamp: number;
   runId?: string;
+  stepId?: string;
+  stepName?: string;
+  stepStatus?: "started" | "completed" | "errored";
+  output?: string;
 };
 
 function emitActivity(win: BrowserWindow, event: ActivityEvent) {
@@ -38,6 +42,107 @@ function normalizeBaseUrl(baseUrl: string | undefined, fallback: string) {
 
 function ensureV1(baseUrl: string) {
   return baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
+}
+
+function ensureApiV1(baseUrl: string) {
+  return baseUrl.endsWith("/api/v1") ? baseUrl : `${baseUrl}/api/v1`;
+}
+
+function buildProviderRequest(
+  provider: ProviderConfig,
+  model: string,
+  prompt: string,
+  input: string
+) {
+  const isLmStudio = provider.vendor === "lmstudio";
+  const baseUrl =
+    provider.vendor === "openai"
+      ? normalizeBaseUrl(provider.baseUrl, "https://api.openai.com/v1")
+      : isLmStudio
+      ? ensureApiV1(normalizeBaseUrl(provider.baseUrl, "http://localhost:1234/api/v1"))
+      : ensureV1(normalizeBaseUrl(provider.baseUrl, "http://localhost:11434"));
+
+  const url = isLmStudio ? `${baseUrl}/chat` : `${baseUrl}/chat/completions`;
+  const body = isLmStudio
+    ? {
+        model,
+        system_prompt: prompt,
+        input: [{ type: "text", text: input }]
+      }
+    : {
+        model,
+        messages: [
+          { role: "system", content: prompt },
+          { role: "user", content: input }
+        ],
+        temperature: 0.3
+      };
+
+  return { url, body, baseUrl, isLmStudio };
+}
+
+async function executeProviderRequest(
+  provider: ProviderConfig,
+  model: string,
+  prompt: string,
+  input: string
+) {
+  if (!model || model.trim().length === 0) {
+    throw new Error("No model configured for provider");
+  }
+
+  const apiKey = provider.apiKey ?? "";
+  const sanitizedApiKey = apiKey.trim();
+  if (sanitizedApiKey && /[^\x20-\x7E]/.test(sanitizedApiKey)) {
+    throw new Error("API key contains non-ASCII characters. Re-enter the key.");
+  }
+
+  const { url, body, baseUrl, isLmStudio } = buildProviderRequest(
+    provider,
+    model,
+    prompt,
+    input
+  );
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {})
+      },
+      body: JSON.stringify(body)
+    });
+  } catch (error) {
+    const isLocal = provider.vendor === "ollama" || provider.vendor === "lmstudio";
+    const detail = error instanceof Error ? error.message : String(error);
+    const message = isLocal
+      ? `Connection failed to ${baseUrl} (${provider.name}). Is the local server running?`
+      : `Request failed: ${detail}`;
+    throw new Error(message);
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Provider error (${response.status}): ${text}`);
+  }
+
+  const json = (await response.json()) as {
+    choices?: { message?: { content?: string } }[];
+    error?: { message?: string };
+    output?: string;
+    message?: string;
+  };
+  const output = isLmStudio
+    ? json?.output ?? json?.message ?? json?.choices?.[0]?.message?.content ?? ""
+    : json?.choices?.[0]?.message?.content ?? "";
+  if (!output) {
+    const errorMessage = json?.error?.message ?? "Provider returned no choices.";
+    throw new Error(errorMessage);
+  }
+
+  return output;
 }
 
 async function resolveProviderId(config: AiTextGenConfig, context: PnifeContext) {
@@ -76,29 +181,7 @@ async function runAiTextGen(
 
   const prompt = config.prompt ?? "Summarize the following text.";
   const model = config.model ?? provider.model;
-  if (!model || model.trim().length === 0) {
-    throw new Error("No model configured for provider");
-  }
-
-  const apiKey = provider.apiKey ?? "";
-  const sanitizedApiKey = apiKey.trim();
-  if (sanitizedApiKey && /[^\x20-\x7E]/.test(sanitizedApiKey)) {
-    throw new Error("API key contains non-ASCII characters. Re-enter the key.");
-  }
-  const baseUrl =
-    provider.vendor === "openai"
-      ? normalizeBaseUrl(provider.baseUrl, "https://api.openai.com/v1")
-      : ensureV1(normalizeBaseUrl(provider.baseUrl, "http://localhost:11434"));
-
-  const url = `${baseUrl}/chat/completions`;
-  const body = {
-    model,
-    messages: [
-      { role: "system", content: prompt },
-      { role: "user", content: context.text }
-    ],
-    temperature: 0.3
-  };
+  const { baseUrl } = buildProviderRequest(provider, model, prompt, context.text);
 
   emitActivity(win, {
     id: `evt_${now()}`,
@@ -116,43 +199,9 @@ async function runAiTextGen(
     runId
   });
 
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(sanitizedApiKey ? { Authorization: `Bearer ${sanitizedApiKey}` } : {})
-      },
-      body: JSON.stringify(body)
-    });
-  } catch (error) {
-    const isLocal = provider.vendor === "ollama" || provider.vendor === "lmstudio";
-    const detail = error instanceof Error ? error.message : String(error);
-    const message = isLocal
-      ? `Connection failed to ${baseUrl} (${provider.name}). Is the local server running?`
-      : `Request failed: ${detail}`;
-    throw new Error(message);
-  }
-
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`Provider error (${response.status}): ${text}`);
-  }
-
-  const json = (await response.json()) as {
-    choices?: { message?: { content?: string } }[];
-    error?: { message?: string };
-  };
-  const output = json?.choices?.[0]?.message?.content ?? "";
-  if (!output) {
-    const errorMessage = json?.error?.message ?? "Provider returned no choices.";
-    throw new Error(errorMessage);
-  }
-
   return {
     ...context,
-    text: output
+    text: await executeProviderRequest(provider, model, prompt, context.text)
   };
 }
 
@@ -161,6 +210,24 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
   ipcMain.handle("pnife:providers:upsert", async (_event, provider) => upsertProvider(provider));
   ipcMain.handle("pnife:providers:delete", async (_event, id) => deleteProvider(id));
   ipcMain.handle("pnife:providers:setDefault", async (_event, id) => setDefaultProvider(id));
+  ipcMain.handle("pnife:providers:test", async (_event, id) => {
+    const provider = await getProviderSecret(id);
+    if (!provider) {
+      return { ok: false, error: "Provider not found." };
+    }
+    try {
+      const output = await executeProviderRequest(
+        provider,
+        provider.model,
+        "Reply with the single word pong.",
+        "ping"
+      );
+      return { ok: true, output };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      return { ok: false, error: message };
+    }
+  });
   ipcMain.handle("pnife:tools:list", () => listTools());
   ipcMain.handle("pnife:tools:save", (_event, tools) => saveTools(tools));
 
@@ -201,6 +268,17 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
         continue;
       }
 
+      emitActivity(win, {
+        id: `evt_${now()}`,
+        type: "info",
+        message: `Step started: ${step.name}`,
+        timestamp: now(),
+        runId,
+        stepId: step.id,
+        stepName: step.name,
+        stepStatus: "started"
+      });
+
       if (step.kind === "transform" && step.config?.type === "ai-text-gen") {
         const config = step.config as AiTextGenConfig;
         try {
@@ -213,7 +291,9 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
             type: "info",
             message: `Processing: ${step.name}${providerLabel ? ` | ${providerLabel}` : ""}`,
             timestamp: now(),
-            runId
+            runId,
+            stepId: step.id,
+            stepName: step.name
           });
           updated = await runAiTextGen(win, config, updated, runId);
           emitActivity(win, {
@@ -221,14 +301,21 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
             type: "info",
             message: `Done: ${step.name}`,
             timestamp: now(),
-            runId
+            runId,
+            stepId: step.id,
+            stepName: step.name,
+            stepStatus: "completed",
+            output: updated.text
           });
           emitActivity(win, {
             id: `evt_${now()}`,
             type: "stream",
             message: updated.text,
             timestamp: now(),
-            runId
+            runId,
+            stepId: step.id,
+            stepName: step.name,
+            output: updated.text
           });
           if (!updated.text) {
             emitActivity(win, {
@@ -236,7 +323,10 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
               type: "error",
               message: "Provider returned empty output.",
               timestamp: now(),
-              runId
+              runId,
+              stepId: step.id,
+              stepName: step.name,
+              stepStatus: "errored"
             });
           }
         } catch (error) {
@@ -246,10 +336,25 @@ export function createMainIpc({ ipcMain, win }: MainIpcDeps) {
             type: "error",
             message,
             timestamp: now(),
-            runId
+            runId,
+            stepId: step.id,
+            stepName: step.name,
+            stepStatus: "errored"
           });
           throw error;
         }
+      } else {
+        emitActivity(win, {
+          id: `evt_${now()}`,
+          type: "info",
+          message: `Done: ${step.name}`,
+          timestamp: now(),
+          runId,
+          stepId: step.id,
+          stepName: step.name,
+          stepStatus: "completed",
+          output: updated.text
+        });
       }
     }
 

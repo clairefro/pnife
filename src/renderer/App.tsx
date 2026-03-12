@@ -7,17 +7,26 @@ export default function App() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
   const [expandedStepId, setExpandedStepId] = useState<string | null>(null);
-  const [stepPromptDrafts, setStepPromptDrafts] = useState<Record<string, string>>({});
-  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"run" | "tools" | "settings">("tools");
+  const [stepPromptDrafts, setStepPromptDrafts] = useState<
+    Record<string, string>
+  >({});
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(
+    null,
+  );
+  const [activeTab, setActiveTab] = useState<"run" | "tools" | "settings">(
+    "tools",
+  );
   const [selectedToolId, setSelectedToolId] = useState<string | null>(null);
   const [inputText, setInputText] = useState(
-    "This is a test paragraph about Pnife. It should be summarized into a shorter, clearer sentence without losing the core meaning or tone."
+    "This is a test paragraph about Pnife. It should be summarized into a shorter, clearer sentence without losing the core meaning or tone.",
   );
   const [lastOutput, setLastOutput] = useState("");
-  const [activity, setActivity] = useState<{ id: string; message: string; type: string }[]>([]);
+  const [activity, setActivity] = useState<
+    { id: string; message: string; type: string }[]
+  >([]);
   const activityEndRef = useRef<HTMLDivElement | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const lastRunInputRef = useRef<string>("");
   const [providerForm, setProviderForm] = useState({
     name: "",
     vendor: "openai",
@@ -25,18 +34,37 @@ export default function App() {
     apiKey: "",
     baseUrl: "",
     model: "",
-    enabled: true
+    enabled: true,
   });
   const [dragStepId, setDragStepId] = useState<string | null>(null);
   const [showAddStepMenu, setShowAddStepMenu] = useState(false);
   const [pendingDeleteStep, setPendingDeleteStep] = useState<Step | null>(null);
+  const [pipelineCurrentStepId, setPipelineCurrentStepId] = useState<
+    string | null
+  >(null);
+  const [pipelineOutputs, setPipelineOutputs] = useState<
+    Record<string, string>
+  >({});
+  const [pipelineErrors, setPipelineErrors] = useState<Record<string, boolean>>(
+    {},
+  );
+  const pipelineCurrentStepRef = useRef<string | null>(null);
+  const [providerTests, setProviderTests] = useState<
+    Record<string, { status: "idle" | "testing" | "ok" | "error"; message?: string }>
+  >({});
+
+  const PIPELINE_INPUT_KEY = "__INPUT__";
+  const PIPELINE_OUTPUT_KEY = "__OUTPUT__";
 
   useEffect(() => {
     if (!window.pnife?.tools) {
       return;
     }
 
-    window.pnife.tools.list().then(setTools).catch(() => setTools([]));
+    window.pnife.tools
+      .list()
+      .then(setTools)
+      .catch(() => setTools([]));
   }, []);
 
   useEffect(() => {
@@ -44,7 +72,10 @@ export default function App() {
       return;
     }
 
-    window.pnife.providers.list().then(setProviders).catch(() => setProviders([]));
+    window.pnife.providers
+      .list()
+      .then(setProviders)
+      .catch(() => setProviders([]));
   }, []);
 
   useEffect(() => {
@@ -55,19 +86,69 @@ export default function App() {
       if (event.runId && event.runId !== currentRunId) {
         setActivity([]);
         setCurrentRunId(event.runId);
+        setPipelineCurrentStepId(null);
+        pipelineCurrentStepRef.current = null;
+        setPipelineOutputs({
+          [PIPELINE_INPUT_KEY]: lastRunInputRef.current,
+        });
+        setPipelineErrors({});
       }
       const uniqueId = `${event.id}_${Math.random().toString(36).slice(2, 8)}`;
-      setActivity((prev) => [...prev, { id: uniqueId, message: event.message, type: event.type }].slice(-50));
+      setActivity((prev) =>
+        [
+          ...prev,
+          { id: uniqueId, message: event.message, type: event.type },
+        ].slice(-50),
+      );
       if (event.type === "stream") {
         setLastOutput(event.message);
+      }
+      if (event.stepStatus === "started" && event.stepId) {
+        setPipelineCurrentStepId(event.stepId);
+        pipelineCurrentStepRef.current = event.stepId;
+      }
+      if (event.stepStatus === "errored" && event.stepId) {
+        setPipelineErrors((prev) => ({ ...prev, [event.stepId]: true }));
+      }
+      if (event.stepStatus === "completed" && event.stepId) {
+        if (pipelineCurrentStepRef.current === event.stepId) {
+          setPipelineCurrentStepId(null);
+          pipelineCurrentStepRef.current = null;
+        }
+        if (event.output) {
+          setPipelineOutputs((prev) => ({
+            ...prev,
+            [event.stepId]: event.output ?? prev[event.stepId],
+            [PIPELINE_OUTPUT_KEY]: event.output ?? prev[PIPELINE_OUTPUT_KEY],
+          }));
+        }
       }
     });
     return () => unsubscribe();
   }, [currentRunId]);
 
   useEffect(() => {
-    activityEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    activityEndRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "end",
+    });
   }, [activity]);
+
+  useEffect(() => {
+    if (!selectedTool) {
+      setPipelineOutputs({});
+      setPipelineCurrentStepId(null);
+      pipelineCurrentStepRef.current = null;
+      setPipelineErrors({});
+      return;
+    }
+    setPipelineOutputs({
+      [PIPELINE_INPUT_KEY]: inputText,
+    });
+    setPipelineCurrentStepId(null);
+    pipelineCurrentStepRef.current = null;
+    setPipelineErrors({});
+  }, [selectedToolId]);
 
   const providerOptions = useMemo(
     () => [
@@ -75,19 +156,19 @@ export default function App() {
       { value: "anthropic", label: "Anthropic", kind: "cloud" as ProviderKind },
       { value: "google", label: "Google", kind: "cloud" as ProviderKind },
       { value: "ollama", label: "Ollama", kind: "local" as ProviderKind },
-      { value: "lmstudio", label: "LM Studio", kind: "local" as ProviderKind }
+      { value: "lmstudio", label: "LM Studio", kind: "local" as ProviderKind },
     ],
-    []
+    [],
   );
 
   const selectedTool = useMemo(
     () => tools.find((tool) => tool.id === selectedToolId) ?? null,
-    [tools, selectedToolId]
+    [tools, selectedToolId],
   );
 
   const defaultProvider = useMemo(
     () => providers.find((provider) => provider.isDefault),
-    [providers]
+    [providers],
   );
 
   function updateProviderForm(next: Partial<typeof providerForm>) {
@@ -106,7 +187,7 @@ export default function App() {
   function updateToolStep(
     toolId: string,
     stepId: string,
-    updater: (step: Step) => Step
+    updater: (step: Step) => Step,
   ): ToolDefinition[] {
     return tools.map((tool) => {
       if (tool.id !== toolId) {
@@ -115,21 +196,32 @@ export default function App() {
       return {
         ...tool,
         pipeline: tool.pipeline.map((step) =>
-          step.id === stepId ? updater(step) : step
-        )
+          step.id === stepId ? updater(step) : step,
+        ),
       };
     });
   }
 
-  async function handleToggleStepEnabled(toolId: string, stepId: string, enabled: boolean) {
-    const nextTools = updateToolStep(toolId, stepId, (step) => ({ ...step, enabled }));
+  async function handleToggleStepEnabled(
+    toolId: string,
+    stepId: string,
+    enabled: boolean,
+  ) {
+    const nextTools = updateToolStep(toolId, stepId, (step) => ({
+      ...step,
+      enabled,
+    }));
     await persistTools(nextTools);
   }
 
-  async function handleSaveStepPrompt(toolId: string, step: Step, prompt: string) {
+  async function handleSaveStepPrompt(
+    toolId: string,
+    step: Step,
+    prompt: string,
+  ) {
     const nextTools = updateToolStep(toolId, step.id, (item) => ({
       ...item,
-      config: { ...item.config, prompt }
+      config: { ...item.config, prompt },
     }));
     await persistTools(nextTools);
   }
@@ -139,18 +231,25 @@ export default function App() {
     if (!trimmed) {
       return;
     }
-    const nextTools = updateToolStep(toolId, step.id, (item) => ({ ...item, name: trimmed }));
+    const nextTools = updateToolStep(toolId, step.id, (item) => ({
+      ...item,
+      name: trimmed,
+    }));
     await persistTools(nextTools);
   }
 
-  async function handleSaveStepConfigType(toolId: string, step: Step, typeValue: string) {
+  async function handleSaveStepConfigType(
+    toolId: string,
+    step: Step,
+    typeValue: string,
+  ) {
     const trimmed = typeValue.trim();
     if (!trimmed) {
       return;
     }
     const nextTools = updateToolStep(toolId, step.id, (item) => ({
       ...item,
-      config: { ...item.config, type: trimmed }
+      config: { ...item.config, type: trimmed },
     }));
     await persistTools(nextTools);
   }
@@ -158,7 +257,7 @@ export default function App() {
   async function handleSaveStepMode(toolId: string, step: Step, mode: string) {
     const nextTools = updateToolStep(toolId, step.id, (item) => ({
       ...item,
-      config: { ...item.config, mode }
+      config: { ...item.config, mode },
     }));
     await persistTools(nextTools);
   }
@@ -169,7 +268,9 @@ export default function App() {
       typeof step.config?.prompt === "string" ? step.config.prompt : undefined;
     if (currentPrompt !== undefined) {
       setStepPromptDrafts((prev) =>
-        prev[step.id] === undefined ? { ...prev, [step.id]: currentPrompt } : prev
+        prev[step.id] === undefined
+          ? { ...prev, [step.id]: currentPrompt }
+          : prev,
       );
     }
   }
@@ -182,7 +283,7 @@ export default function App() {
         name: "New Transform",
         kind,
         enabled: true,
-        config: { type: "ai-text-gen", prompt: "" }
+        config: { type: "ai-text-gen", prompt: "" },
       };
     }
     return {
@@ -190,7 +291,7 @@ export default function App() {
       name: "New Output",
       kind,
       enabled: true,
-      config: { type: "custom-output" }
+      config: { type: "custom-output" },
     };
   }
 
@@ -200,7 +301,7 @@ export default function App() {
       id,
       name: "Untitled Tool",
       description: "",
-      pipeline: []
+      pipeline: [],
     };
     const nextTools = [...tools, nextTool];
     await persistTools(nextTools);
@@ -227,14 +328,21 @@ export default function App() {
     }
     const nextTools = tools.map((tool) =>
       tool.id === selectedTool.id
-        ? { ...tool, pipeline: tool.pipeline.filter((item) => item.id !== step.id) }
-        : tool
+        ? {
+            ...tool,
+            pipeline: tool.pipeline.filter((item) => item.id !== step.id),
+          }
+        : tool,
     );
     await persistTools(nextTools);
     setExpandedStepId((prev) => (prev === step.id ? null : prev));
   }
 
-  async function handleReorderStep(tool: ToolDefinition, fromId: string, toId: string) {
+  async function handleReorderStep(
+    tool: ToolDefinition,
+    fromId: string,
+    toId: string,
+  ) {
     if (fromId === toId) {
       return;
     }
@@ -247,7 +355,7 @@ export default function App() {
     const [moved] = nextPipeline.splice(fromIndex, 1);
     nextPipeline.splice(toIndex, 0, moved);
     const nextTools = tools.map((item) =>
-      item.id === tool.id ? { ...item, pipeline: nextPipeline } : item
+      item.id === tool.id ? { ...item, pipeline: nextPipeline } : item,
     );
     await persistTools(nextTools);
   }
@@ -273,7 +381,7 @@ export default function App() {
       model: providerForm.model.trim(),
       isDefault: false,
       createdAt: Date.now(),
-      updatedAt: Date.now()
+      updatedAt: Date.now(),
     };
 
     if (providerForm.apiKey.trim()) {
@@ -295,7 +403,7 @@ export default function App() {
       apiKey: "",
       baseUrl: "",
       model: "",
-      enabled: true
+      enabled: true,
     });
     setEditingProviderId(null);
   }
@@ -310,13 +418,43 @@ export default function App() {
     setProviders(updated);
   }
 
-  async function handleToggleEnabled(provider: ProviderConfig, enabled: boolean) {
+  async function handleToggleEnabled(
+    provider: ProviderConfig,
+    enabled: boolean,
+  ) {
     await window.pnife.providers.upsert({
       ...provider,
       enabled,
-      isDefault: provider.isDefault
+      isDefault: provider.isDefault,
     });
     await refreshProviders();
+  }
+
+  async function handleTestProvider(provider: ProviderConfig) {
+    setProviderTests((prev) => ({
+      ...prev,
+      [provider.id]: { status: "testing" },
+    }));
+    try {
+      const result = await window.pnife.providers.test(provider.id);
+      if (result.ok) {
+        setProviderTests((prev) => ({
+          ...prev,
+          [provider.id]: { status: "ok", message: result.output },
+        }));
+      } else {
+        setProviderTests((prev) => ({
+          ...prev,
+          [provider.id]: { status: "error", message: result.error },
+        }));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      setProviderTests((prev) => ({
+        ...prev,
+        [provider.id]: { status: "error", message },
+      }));
+    }
   }
 
   function handleEditProvider(provider: ProviderConfig) {
@@ -328,15 +466,19 @@ export default function App() {
       apiKey: "",
       baseUrl: provider.baseUrl ?? "",
       model: provider.model ?? "",
-      enabled: provider.enabled
+      enabled: provider.enabled,
     });
   }
 
   async function handleRunTool(tool: ToolDefinition) {
     if (!providers.some((provider) => provider.enabled)) {
       setActivity((prev) => [
-        { id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, message: "Configure at least one enabled provider." },
-        ...prev
+        {
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          message: "Configure at least one enabled provider.",
+          type: "error",
+        },
+        ...prev,
       ]);
       return;
     }
@@ -344,26 +486,39 @@ export default function App() {
     setActivity([]);
     setCurrentRunId(null);
     setLastOutput("");
+    lastRunInputRef.current = inputText;
+    setPipelineOutputs({
+      [PIPELINE_INPUT_KEY]: inputText,
+    });
+    setPipelineCurrentStepId(null);
+    pipelineCurrentStepRef.current = null;
+    setPipelineErrors({});
     const context = {
       text: inputText,
       data: {},
       attachments: [],
-      metadata: { timestamp: Date.now() }
+      metadata: { timestamp: Date.now() },
     };
     try {
       const result = await window.pnife.pipeline.run(tool.pipeline, context);
       setLastOutput(result.context.text);
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Pipeline failed.";
+      const message =
+        error instanceof Error ? error.message : "Pipeline failed.";
       setActivity((prev) => [
-        { id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, message, type: "error" },
-        ...prev
+        {
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          message,
+          type: "error",
+        },
+        ...prev,
       ]);
     }
   }
 
   function formatOutput(message: string) {
-    const trimmed = message.trim();
+    const safeMessage = typeof message === "string" ? message : String(message ?? "");
+    const trimmed = safeMessage.trim();
     if (trimmed.length <= 200) {
       return trimmed;
     }
@@ -374,7 +529,7 @@ export default function App() {
     const parts = message.split(" | ");
     return {
       main: parts[0] ?? message,
-      meta: parts.length > 1 ? parts.slice(1).join(" | ") : ""
+      meta: parts.length > 1 ? parts.slice(1).join(" | ") : "",
     };
   }
 
@@ -382,7 +537,7 @@ export default function App() {
     const parts = message.split(" | ");
     return {
       main: parts[0] ?? message,
-      meta: parts.length > 1 ? parts.slice(1).join(" | ") : ""
+      meta: parts.length > 1 ? parts.slice(1).join(" | ") : "",
     };
   }
 
@@ -429,7 +584,10 @@ export default function App() {
                         {tool.pipeline.length} steps
                       </div>
                     </div>
-                    <button className={styles.ghostButton} onClick={() => handleRunTool(tool)}>
+                    <button
+                      className={styles.ghostButton}
+                      onClick={() => handleRunTool(tool)}
+                    >
                       Run
                     </button>
                   </div>
@@ -459,50 +617,64 @@ export default function App() {
                 <div className={styles.muted}>No activity yet.</div>
               ) : (
                 activity.map((event) => (
-                <div key={event.id} className={styles.activityItem}>
-                  <span
-                    className={
-                      event.type === "error"
-                        ? styles.activityError
+                  <div key={event.id} className={styles.activityItem}>
+                    <span
+                      className={
+                        event.type === "error"
+                          ? styles.activityError
+                          : event.type === "stream"
+                            ? styles.activityOutput
+                            : styles.activityInfo
+                      }
+                    >
+                      {event.type === "error"
+                        ? "[ERROR]"
                         : event.type === "stream"
-                        ? styles.activityOutput
-                        : styles.activityInfo
-                    }
-                  >
-                    {event.type === "error"
-                      ? "[ERROR]"
-                      : event.type === "stream"
-                      ? "[OUTPUT]"
-                      : "[INFO]"}
-                  </span>{" "}
-                  <span className={styles.activityText}>
-                    {event.type === "stream"
-                      ? `Output: ${formatOutput(event.message)}`
-                      : event.message.startsWith("Processing:")
-                      ? (() => {
-                          const { main, meta } = splitProcessingMessage(event.message);
+                          ? "[OUTPUT]"
+                          : "[INFO]"}
+                    </span>{" "}
+                    <span className={styles.activityText}>
+                      {(() => {
+                        const messageText = String(event.message ?? "");
+                        if (event.type === "stream") {
+                          return `Output: ${formatOutput(event.message)}`;
+                        }
+                        if (messageText.startsWith("Processing:")) {
+                          const { main, meta } =
+                            splitProcessingMessage(messageText);
                           return (
                             <>
                               {main}
-                              {meta ? <span className={styles.activityMeta}> {meta}</span> : null}
+                              {meta ? (
+                                <span className={styles.activityMeta}>
+                                  {" "}
+                                  {meta}
+                                </span>
+                              ) : null}
                             </>
                           );
-                        })()
-                      : event.message.startsWith("Pipeline complete")
-                      ? (() => {
-                          const { main, meta } = splitCompletionMessage(event.message);
+                        }
+                        if (messageText.startsWith("Pipeline complete")) {
+                          const { main, meta } =
+                            splitCompletionMessage(messageText);
                           return (
                             <>
                               {main}
-                              {meta ? <span className={styles.activityMeta}> {meta}</span> : null}
+                              {meta ? (
+                                <span className={styles.activityMeta}>
+                                  {" "}
+                                  {meta}
+                                </span>
+                              ) : null}
                             </>
                           );
-                        })()
-                      : event.message}
-                    {event.message.startsWith("Processing:") && (
-                      <span className={styles.loadingDots}>...</span>
-                    )}
-                  </span>
+                        }
+                        return messageText;
+                      })()}
+                      {String(event.message ?? "").startsWith("Processing:") && (
+                        <span className={styles.loadingDots}>...</span>
+                      )}
+                    </span>
                   </div>
                 ))
               )}
@@ -523,7 +695,11 @@ export default function App() {
                 <div className={styles.toolsList}>
                   <div className={styles.toolsListHeader}>
                     <div className={styles.rowTitle}>Tools</div>
-                    <button className={styles.ghostButton} type="button" onClick={handleAddTool}>
+                    <button
+                      className={styles.ghostButton}
+                      type="button"
+                      onClick={handleAddTool}
+                    >
                       Add Tool
                     </button>
                   </div>
@@ -531,7 +707,9 @@ export default function App() {
                     <button
                       key={tool.id}
                       className={
-                        selectedToolId === tool.id ? styles.toolRowActive : styles.toolRow
+                        selectedToolId === tool.id
+                          ? styles.toolRowActive
+                          : styles.toolRow
                       }
                       onClick={() => setSelectedToolId(tool.id)}
                     >
@@ -592,14 +770,14 @@ export default function App() {
                             <div className={styles.stepCardStatic}>
                               <div className={styles.stepHeaderStatic}>
                                 <span className={styles.stepInput}>INPUT</span>
-                                <span className={styles.stepName}>
-                                  Input
-                                </span>
+                                <span className={styles.stepName}>Input</span>
                               </div>
                             </div>
 
                             {orderedSteps.length === 0 ? (
-                              <div className={styles.muted}>No steps in this tool.</div>
+                              <div className={styles.muted}>
+                                No steps in this tool.
+                              </div>
                             ) : (
                               orderedSteps.map((step) => {
                                 const isExpanded = expandedStepId === step.id;
@@ -607,12 +785,15 @@ export default function App() {
                                   typeof step.config?.prompt === "string"
                                     ? step.config.prompt
                                     : "";
-                                const promptValue = stepPromptDrafts[step.id] ?? currentPrompt;
+                                const promptValue =
+                                  stepPromptDrafts[step.id] ?? currentPrompt;
                                 const hasPrompt =
                                   step.kind === "transform" ||
                                   typeof step.config?.prompt === "string";
                                 const typeValue =
-                                  typeof step.config?.type === "string" ? step.config.type : "";
+                                  typeof step.config?.type === "string"
+                                    ? step.config.type
+                                    : "";
                                 const modeValue =
                                   typeof step.config?.mode === "string"
                                     ? step.config.mode
@@ -621,15 +802,23 @@ export default function App() {
                                   <div
                                     key={step.id}
                                     className={`${styles.stepCard} ${
-                                      step.enabled ? "" : styles.stepCardDisabled
+                                      step.enabled
+                                        ? ""
+                                        : styles.stepCardDisabled
                                     }`}
                                     draggable
                                     onDragStart={() => setDragStepId(step.id)}
                                     onDragEnd={() => setDragStepId(null)}
-                                    onDragOver={(event) => event.preventDefault()}
+                                    onDragOver={(event) =>
+                                      event.preventDefault()
+                                    }
                                     onDrop={() => {
                                       if (dragStepId && selectedTool) {
-                                        handleReorderStep(selectedTool, dragStepId, step.id);
+                                        handleReorderStep(
+                                          selectedTool,
+                                          dragStepId,
+                                          step.id,
+                                        );
                                         setDragStepId(null);
                                       }
                                     }}
@@ -640,7 +829,10 @@ export default function App() {
                                       className={styles.stepHeader}
                                       onClick={() => handleToggleStepEdit(step)}
                                       onKeyDown={(event) => {
-                                        if (event.key === "Enter" || event.key === " ") {
+                                        if (
+                                          event.key === "Enter" ||
+                                          event.key === " "
+                                        ) {
                                           event.preventDefault();
                                           handleToggleStepEdit(step);
                                         }
@@ -656,8 +848,12 @@ export default function App() {
                                       >
                                         {step.kind.toUpperCase()}
                                       </span>
-                                      <span className={styles.stepName}>{step.name}</span>
-                                      <span className={styles.stepHeaderActions}>
+                                      <span className={styles.stepName}>
+                                        {step.name}
+                                      </span>
+                                      <span
+                                        className={styles.stepHeaderActions}
+                                      >
                                         <button
                                           type="button"
                                           className={styles.stepDelete}
@@ -676,7 +872,11 @@ export default function App() {
                                     {isExpanded && (
                                       <div className={styles.stepEditor}>
                                         <div className={styles.stepField}>
-                                          <div className={styles.stepFieldLabel}>Name</div>
+                                          <div
+                                            className={styles.stepFieldLabel}
+                                          >
+                                            Name
+                                          </div>
                                           <input
                                             className={styles.input}
                                             defaultValue={step.name}
@@ -685,7 +885,7 @@ export default function App() {
                                                 ? handleSaveStepName(
                                                     selectedTool.id,
                                                     step,
-                                                    event.target.value
+                                                    event.target.value,
                                                   )
                                                 : undefined
                                             }
@@ -700,7 +900,7 @@ export default function App() {
                                                 ? handleToggleStepEnabled(
                                                     selectedTool.id,
                                                     step.id,
-                                                    event.target.checked
+                                                    event.target.checked,
                                                   )
                                                 : undefined
                                             }
@@ -709,7 +909,11 @@ export default function App() {
                                         </label>
                                         {step.kind === "transform" ? (
                                           <div className={styles.stepField}>
-                                            <div className={styles.stepFieldLabel}>Type</div>
+                                            <div
+                                              className={styles.stepFieldLabel}
+                                            >
+                                              Type
+                                            </div>
                                             <select
                                               className={styles.input}
                                               value={modeValue}
@@ -718,18 +922,26 @@ export default function App() {
                                                   ? handleSaveStepMode(
                                                       selectedTool.id,
                                                       step,
-                                                      event.target.value
+                                                      event.target.value,
                                                     )
                                                   : undefined
                                               }
                                             >
-                                              <option value="prompt">Prompt</option>
-                                              <option value="structured-data">Structured Data</option>
+                                              <option value="prompt">
+                                                Prompt
+                                              </option>
+                                              <option value="structured-data">
+                                                Structured Data
+                                              </option>
                                             </select>
                                           </div>
                                         ) : (
                                           <div className={styles.stepField}>
-                                            <div className={styles.stepFieldLabel}>Type</div>
+                                            <div
+                                              className={styles.stepFieldLabel}
+                                            >
+                                              Type
+                                            </div>
                                             <input
                                               className={styles.input}
                                               defaultValue={typeValue}
@@ -738,7 +950,7 @@ export default function App() {
                                                   ? handleSaveStepConfigType(
                                                       selectedTool.id,
                                                       step,
-                                                      event.target.value
+                                                      event.target.value,
                                                     )
                                                   : undefined
                                               }
@@ -747,19 +959,27 @@ export default function App() {
                                         )}
                                         {hasPrompt && (
                                           <div className={styles.stepField}>
-                                            <div className={styles.stepFieldLabel}>Prompt</div>
+                                            <div
+                                              className={styles.stepFieldLabel}
+                                            >
+                                              Prompt
+                                            </div>
                                             <textarea
                                               className={styles.textarea}
                                               value={promptValue}
                                               onChange={(event) =>
                                                 setStepPromptDrafts((prev) => ({
                                                   ...prev,
-                                                  [step.id]: event.target.value
+                                                  [step.id]: event.target.value,
                                                 }))
                                               }
                                               rows={3}
                                             />
-                                            <div className={styles.stepFieldActions}>
+                                            <div
+                                              className={
+                                                styles.stepFieldActions
+                                              }
+                                            >
                                               <button
                                                 type="button"
                                                 className={styles.ghostButton}
@@ -768,11 +988,13 @@ export default function App() {
                                                     ? handleSaveStepPrompt(
                                                         selectedTool.id,
                                                         step,
-                                                        promptValue
+                                                        promptValue,
                                                       )
                                                     : undefined
                                                 }
-                                                disabled={promptValue === currentPrompt}
+                                                disabled={
+                                                  promptValue === currentPrompt
+                                                }
                                               >
                                                 Save Prompt
                                               </button>
@@ -789,16 +1011,16 @@ export default function App() {
                             <div className={styles.stepCardStatic}>
                               <div className={styles.stepHeaderStatic}>
                                 <span className={styles.stepOutput}>OUT</span>
-                                <span className={styles.stepName}>
-                                  Output
-                                </span>
+                                <span className={styles.stepName}>Output</span>
                               </div>
                             </div>
                           </>
                         );
                       })()
                     ) : (
-                      <div className={styles.muted}>Select a tool to view steps.</div>
+                      <div className={styles.muted}>
+                        Select a tool to view steps.
+                      </div>
                     )}
                   </div>
                 </div>
@@ -824,7 +1046,9 @@ export default function App() {
                         }
                       }}
                     >
-                      {selectedTool ? `Run ${selectedTool.name}` : "Select a tool to run"}
+                      {selectedTool
+                        ? `Run ${selectedTool.name}`
+                        : "Select a tool to run"}
                     </button>
                   </div>
                   <div className={styles.output}>
@@ -846,45 +1070,55 @@ export default function App() {
                             event.type === "error"
                               ? styles.activityError
                               : event.type === "stream"
-                              ? styles.activityOutput
-                              : styles.activityInfo
+                                ? styles.activityOutput
+                                : styles.activityInfo
                           }
                         >
                           {event.type === "error"
                             ? "[ERROR]"
                             : event.type === "stream"
-                            ? "[OUTPUT]"
-                            : "[INFO]"}
+                              ? "[OUTPUT]"
+                              : "[INFO]"}
                         </span>{" "}
                         <span className={styles.activityText}>
-                          {event.type === "stream"
-                            ? `Output: ${formatOutput(event.message)}`
-                            : event.message.startsWith("Processing:")
-                            ? (() => {
-                                const { main, meta } = splitProcessingMessage(event.message);
-                                return (
-                                  <>
-                                    {main}
-                                    {meta ? (
-                                      <span className={styles.activityMeta}> {meta}</span>
-                                    ) : null}
-                                  </>
-                                );
-                              })()
-                            : event.message.startsWith("Pipeline complete")
-                            ? (() => {
-                                const { main, meta } = splitCompletionMessage(event.message);
-                                return (
-                                  <>
-                                    {main}
-                                    {meta ? (
-                                      <span className={styles.activityMeta}> {meta}</span>
-                                    ) : null}
-                                  </>
-                                );
-                              })()
-                            : event.message}
-                          {event.message.startsWith("Processing:") && (
+                          {(() => {
+                            const messageText = String(event.message ?? "");
+                            if (event.type === "stream") {
+                              return `Output: ${formatOutput(event.message)}`;
+                            }
+                            if (messageText.startsWith("Processing:")) {
+                              const { main, meta } =
+                                splitProcessingMessage(messageText);
+                              return (
+                                <>
+                                  {main}
+                                  {meta ? (
+                                    <span className={styles.activityMeta}>
+                                      {" "}
+                                      {meta}
+                                    </span>
+                                  ) : null}
+                                </>
+                              );
+                            }
+                            if (messageText.startsWith("Pipeline complete")) {
+                              const { main, meta } =
+                                splitCompletionMessage(messageText);
+                              return (
+                                <>
+                                  {main}
+                                  {meta ? (
+                                    <span className={styles.activityMeta}>
+                                      {" "}
+                                      {meta}
+                                    </span>
+                                  ) : null}
+                                </>
+                              );
+                            }
+                            return messageText;
+                          })()}
+                          {String(event.message ?? "").startsWith("Processing:") && (
                             <span className={styles.loadingDots}>...</span>
                           )}
                         </span>
@@ -895,13 +1129,75 @@ export default function App() {
                 </div>
               </section>
             </div>
+            <section className={styles.panel}>
+              <div className={styles.panelTitle}>Pipeline</div>
+              <div className={styles.panelBody}>
+                {!selectedTool ? (
+                  <div className={styles.muted}>Select a tool to view pipeline.</div>
+                ) : (
+                  <div className={styles.pipelineList}>
+                    <div className={styles.pipelineRow}>
+                      <span
+                        className={`${styles.pipelineIndicator} ${styles.pipelineIndicatorIdle}`}
+                      />
+                      <div className={styles.pipelineMain}>
+                        <div className={styles.pipelineLabel}>INPUT</div>
+                        <div className={styles.pipelineOutput}>
+                          {pipelineOutputs[PIPELINE_INPUT_KEY] ?? "—"}
+                        </div>
+                      </div>
+                    </div>
+                    {selectedTool.pipeline.map((step) => {
+                      const isActive = pipelineCurrentStepId === step.id;
+                      const isErrored = pipelineErrors[step.id];
+                      return (
+                        <div key={step.id} className={styles.pipelineRow}>
+                          <span
+                            className={`${styles.pipelineIndicator} ${
+                              isErrored
+                                ? styles.pipelineIndicatorError
+                                : isActive
+                                  ? styles.pipelineIndicatorActive
+                                  : styles.pipelineIndicatorIdle
+                            }`}
+                          />
+                          <div className={styles.pipelineMain}>
+                            <div className={styles.pipelineLabel}>
+                              {step.name}{" "}
+                              <span className={styles.pipelineKind}>
+                                {step.kind.toUpperCase()}
+                              </span>
+                            </div>
+                            <div className={styles.pipelineOutput}>
+                              {pipelineOutputs[step.id] ?? "—"}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className={styles.pipelineRow}>
+                      <span
+                        className={`${styles.pipelineIndicator} ${styles.pipelineIndicatorIdle}`}
+                      />
+                      <div className={styles.pipelineMain}>
+                        <div className={styles.pipelineLabel}>OUTPUT</div>
+                        <div className={styles.pipelineOutput}>
+                          {pipelineOutputs[PIPELINE_OUTPUT_KEY] ?? "—"}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
           {pendingDeleteStep && (
             <div className={styles.modalBackdrop} role="presentation">
               <div className={styles.modal} role="dialog" aria-modal="true">
                 <div className={styles.modalTitle}>Delete Step</div>
                 <div className={styles.modalBody}>
-                  Delete “{pendingDeleteStep.name}”? This will remove it from all tools.
+                  Delete “{pendingDeleteStep.name}”? This will remove it from
+                  all tools.
                 </div>
                 <div className={styles.modalActions}>
                   <button
@@ -938,7 +1234,9 @@ export default function App() {
                 <input
                   className={styles.input}
                   value={providerForm.name}
-                  onChange={(event) => updateProviderForm({ name: event.target.value })}
+                  onChange={(event) =>
+                    updateProviderForm({ name: event.target.value })
+                  }
                   placeholder="Provider name"
                 />
               </div>
@@ -949,8 +1247,13 @@ export default function App() {
                   value={providerForm.vendor}
                   onChange={(event) => {
                     const vendor = event.target.value;
-                    const option = providerOptions.find((item) => item.value === vendor);
-                    updateProviderForm({ vendor, kind: option?.kind ?? providerForm.kind });
+                    const option = providerOptions.find(
+                      (item) => item.value === vendor,
+                    );
+                    updateProviderForm({
+                      vendor,
+                      kind: option?.kind ?? providerForm.kind,
+                    });
                   }}
                 >
                   {providerOptions.map((option) => (
@@ -965,7 +1268,9 @@ export default function App() {
                 <input
                   className={styles.input}
                   value={providerForm.apiKey}
-                  onChange={(event) => updateProviderForm({ apiKey: event.target.value })}
+                  onChange={(event) =>
+                    updateProviderForm({ apiKey: event.target.value })
+                  }
                   placeholder="Optional for local providers"
                   type="password"
                 />
@@ -975,7 +1280,9 @@ export default function App() {
                 <input
                   className={styles.input}
                   value={providerForm.baseUrl}
-                  onChange={(event) => updateProviderForm({ baseUrl: event.target.value })}
+                  onChange={(event) =>
+                    updateProviderForm({ baseUrl: event.target.value })
+                  }
                   placeholder="http://localhost:11434"
                 />
               </div>
@@ -984,7 +1291,9 @@ export default function App() {
                 <input
                   className={styles.input}
                   value={providerForm.model}
-                  onChange={(event) => updateProviderForm({ model: event.target.value })}
+                  onChange={(event) =>
+                    updateProviderForm({ model: event.target.value })
+                  }
                   placeholder="gpt-4o-mini / llama3.1"
                   required
                 />
@@ -1005,7 +1314,7 @@ export default function App() {
                       apiKey: "",
                       baseUrl: "",
                       model: "",
-                      enabled: true
+                      enabled: true,
                     });
                   }}
                 >
@@ -1016,7 +1325,9 @@ export default function App() {
 
             <div className={styles.list}>
               {!providers.some((provider) => provider.enabled) && (
-                <div className={styles.banner}>Configure at least one enabled provider to run tools.</div>
+                <div className={styles.banner}>
+                  Configure at least one enabled provider to run tools.
+                </div>
               )}
               {providers.length === 0 ? (
                 <div className={styles.muted}>No providers configured.</div>
@@ -1036,7 +1347,9 @@ export default function App() {
                       <input
                         type="checkbox"
                         checked={provider.enabled}
-                        onChange={(event) => handleToggleEnabled(provider, event.target.checked)}
+                        onChange={(event) =>
+                          handleToggleEnabled(provider, event.target.checked)
+                        }
                       />
                       <span className={styles.radioText}>Enabled</span>
                     </label>
@@ -1047,6 +1360,16 @@ export default function App() {
                       </div>
                     </div>
                     <div className={styles.rowActions}>
+                      <button
+                        className={styles.ghostButton}
+                        type="button"
+                        onClick={() => handleTestProvider(provider)}
+                        disabled={providerTests[provider.id]?.status === "testing"}
+                      >
+                        {providerTests[provider.id]?.status === "testing"
+                          ? "Testing..."
+                          : "Test"}
+                      </button>
                       <button
                         className={styles.ghostButton}
                         type="button"
@@ -1061,6 +1384,12 @@ export default function App() {
                       >
                         Remove
                       </button>
+                      {providerTests[provider.id]?.status === "ok" && (
+                        <span className={styles.providerTestOk}>OK</span>
+                      )}
+                      {providerTests[provider.id]?.status === "error" && (
+                        <span className={styles.providerTestError}>Failed</span>
+                      )}
                     </div>
                   </div>
                 ))
@@ -1072,7 +1401,10 @@ export default function App() {
 
       <footer className={styles.statusBar}>
         <span className={styles.statusText}>
-          Default Model: {defaultProvider ? `${defaultProvider.name} • ${defaultProvider.model}` : "None"}
+          Default Model:{" "}
+          {defaultProvider
+            ? `${defaultProvider.name} • ${defaultProvider.model}`
+            : "None"}
         </span>
       </footer>
     </div>

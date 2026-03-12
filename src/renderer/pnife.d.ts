@@ -7,6 +7,10 @@ type ActivityEvent = {
   message: string;
   timestamp: number;
   runId?: string;
+  stepId?: string;
+  stepName?: string;
+  stepStatus?: "started" | "completed" | "errored";
+  output?: string;
 };
 
 declare global {
@@ -17,6 +21,7 @@ declare global {
         upsert: (provider: ProviderConfig) => Promise<ProviderConfig>;
         delete: (id: string) => Promise<{ deleted: boolean }>;
         setDefault: (id: string) => Promise<ProviderConfig[]>;
+        test: (id: string) => Promise<{ ok: boolean; output?: string; error?: string }>;
       };
       tools: {
         list: () => Promise<ToolDefinition[]>;

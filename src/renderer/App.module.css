@@ -55,7 +55,7 @@
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
-  padding: 20px 24px;
+  padding: 20px 24px 60px;
 }
 
 .panel {
@@ -69,7 +69,7 @@
 .panelWide {
   border: 1px solid #262626;
   background: #0f0f0f;
-  margin: 0 24px 24px;
+  margin: 0 24px 60px;
   display: flex;
   flex-direction: column;
 }
@@ -242,6 +242,7 @@
 .rowActions {
   display: flex;
   gap: 8px;
+  align-items: center;
 }
 
 .toolsLayout {
@@ -262,6 +263,65 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
   margin-top: 16px;
+}
+
+.pipelineList {
+  display: grid;
+  gap: 10px;
+}
+
+.pipelineRow {
+  display: grid;
+  grid-template-columns: 12px minmax(0, 1fr);
+  gap: 12px;
+  align-items: flex-start;
+  border: 1px solid #262626;
+  padding: 10px 12px;
+  background: #0a0a0a;
+}
+
+.pipelineIndicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  margin-top: 4px;
+}
+
+.pipelineIndicatorIdle {
+  background: #3a3a3a;
+}
+
+.pipelineIndicatorActive {
+  background: #6bff9d;
+  box-shadow: 0 0 0 4px rgba(107, 255, 157, 0.15);
+}
+
+.pipelineIndicatorError {
+  background: #ff6b6b;
+  box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.15);
+}
+
+.pipelineMain {
+  display: grid;
+  gap: 6px;
+}
+
+.pipelineLabel {
+  font-size: 12px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #d4d4d4;
+}
+
+.pipelineKind {
+  color: #8f8f8f;
+  font-size: 11px;
+}
+
+.pipelineOutput {
+  font-size: 12px;
+  color: #bfbfbf;
+  white-space: pre-wrap;
 }
 
 .testbenchActions {
@@ -524,18 +584,37 @@
   border-color: #3a3a3a;
 }
 
+.providerTestOk {
+  font-size: 11px;
+  color: #6bff9d;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.providerTestError {
+  font-size: 11px;
+  color: #ff6b6b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
 .muted {
   color: #7f7f7f;
   font-size: 13px;
 }
 
 .statusBar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
   border-top: 1px solid #262626;
   background: #0a0a0a;
   padding: 8px 16px;
   display: flex;
   align-items: center;
   justify-content: flex-end;
+  z-index: 40;
 }
 
 .statusText {
