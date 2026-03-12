@@ -23,19 +23,23 @@ function normalizeBaseUrl(baseUrl, fallback) {
 function ensureV1(baseUrl) {
     return baseUrl.endsWith("/v1") ? baseUrl : `${baseUrl}/v1`;
 }
-async function pickDefaultProviderId() {
-    const providers = await (0, providerStore_1.listProviders)();
-    const defaultProvider = providers.find((item) => item.isDefault && item.enabled);
-    if (defaultProvider) {
-        return defaultProvider.id;
+async function resolveProviderId(config, context) {
+    const explicitId = config.providerId ?? context.data.providerId ?? null;
+    if (explicitId) {
+        return explicitId;
     }
-    const enabled = providers.find((item) => item.enabled);
-    return enabled?.id ?? null;
+    const providers = await (0, providerStore_1.listProviders)();
+    const defaultProvider = providers.find((item) => item.isDefault);
+    if (!defaultProvider) {
+        throw new Error("No default provider configured.");
+    }
+    if (!defaultProvider.enabled) {
+        throw new Error("Default provider is disabled.");
+    }
+    return defaultProvider.id;
 }
 async function runAiTextGen(win, config, context, runId) {
-    const providerId = config.providerId ??
-        context.data.providerId ??
-        (await pickDefaultProviderId());
+    const providerId = await resolveProviderId(config, context);
     if (!providerId) {
         throw new Error("No provider configured for ai-text-gen");
     }
@@ -103,6 +107,18 @@ function createMainIpc({ ipcMain, win }) {
     ipcMain.handle("pnife:tools:list", () => tools_1.starterTools);
     ipcMain.handle("pnife:pipeline:run", async (_event, pipeline, context) => {
         const runId = `run_${now()}`;
+        const providers = await (0, providerStore_1.listProviders)();
+        const hasEnabledProvider = providers.some((item) => item.enabled);
+        if (!hasEnabledProvider) {
+            emitActivity(win, {
+                id: `evt_${now()}`,
+                type: "error",
+                message: "No enabled provider configured.",
+                timestamp: now(),
+                runId
+            });
+            throw new Error("No enabled provider configured.");
+        }
         emitActivity(win, {
             id: `evt_${now()}`,
             type: "info",

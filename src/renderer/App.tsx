@@ -6,7 +6,10 @@ import { ProviderConfig, ProviderKind } from "../shared/types";
 export default function App() {
   const [tools, setTools] = useState<ToolDefinition[]>([]);
   const [providers, setProviders] = useState<ProviderConfig[]>([]);
-  const [inputText, setInputText] = useState("Paste text to summarize or transform.");
+  const [editingProviderId, setEditingProviderId] = useState<string | null>(null);
+  const [inputText, setInputText] = useState(
+    "This is a test paragraph about Pnife. It should be summarized into a shorter, clearer sentence without losing the core meaning or tone."
+  );
   const [lastOutput, setLastOutput] = useState("");
   const [activity, setActivity] = useState<{ id: string; message: string }[]>([]);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
@@ -82,8 +85,9 @@ export default function App() {
     const option = providerOptions.find((item) => item.value === vendor);
     const kind = option?.kind ?? providerForm.kind;
 
+    const id = editingProviderId ?? `provider_${vendor}_${Date.now()}`;
     const payload: ProviderConfig = {
-      id: `provider_${vendor}_${Date.now()}`,
+      id,
       name: providerForm.name.trim() || option?.label || vendor,
       vendor,
       kind,
@@ -115,6 +119,7 @@ export default function App() {
       model: "",
       enabled: true
     });
+    setEditingProviderId(null);
   }
 
   async function handleDeleteProvider(id: string) {
@@ -125,6 +130,28 @@ export default function App() {
   async function handleSetDefaultProvider(id: string) {
     const updated = await window.pnife.providers.setDefault(id);
     setProviders(updated);
+  }
+
+  async function handleToggleEnabled(provider: ProviderConfig, enabled: boolean) {
+    await window.pnife.providers.upsert({
+      ...provider,
+      enabled,
+      isDefault: provider.isDefault
+    });
+    await refreshProviders();
+  }
+
+  function handleEditProvider(provider: ProviderConfig) {
+    setEditingProviderId(provider.id);
+    setProviderForm({
+      name: provider.name,
+      vendor: provider.vendor,
+      kind: provider.kind,
+      apiKey: "",
+      baseUrl: provider.baseUrl ?? "",
+      model: provider.model ?? "",
+      enabled: provider.enabled
+    });
   }
 
   async function handleRunTool(tool: ToolDefinition) {
@@ -275,19 +302,29 @@ export default function App() {
                 required
               />
             </div>
-            <div className={styles.fieldInline}>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={providerForm.enabled}
-                  onChange={(event) => updateProviderForm({ enabled: event.target.checked })}
-                />
-                Enabled
-              </label>
-            </div>
             <button className={styles.button} type="submit">
-              Save Provider
+              {editingProviderId ? "Update Provider" : "Save Provider"}
             </button>
+            {editingProviderId && (
+              <button
+                className={styles.ghostButton}
+                type="button"
+                onClick={() => {
+                  setEditingProviderId(null);
+                  setProviderForm({
+                    name: "",
+                    vendor: "openai",
+                    kind: "cloud",
+                    apiKey: "",
+                    baseUrl: "",
+                    model: "",
+                    enabled: true
+                  });
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </form>
 
           <div className={styles.list}>
@@ -308,19 +345,36 @@ export default function App() {
                     />
                     <span className={styles.radioText}>Default</span>
                   </label>
+                  <label className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={provider.enabled}
+                      onChange={(event) => handleToggleEnabled(provider, event.target.checked)}
+                    />
+                    <span className={styles.radioText}>Enabled</span>
+                  </label>
                   <div className={styles.rowMain}>
                     <div className={styles.rowTitle}>{provider.name}</div>
                     <div className={styles.rowMeta}>
-                      {provider.vendor} • {provider.kind} • {provider.enabled ? "enabled" : "disabled"}
+                      {provider.vendor} • {provider.kind} • {provider.model}
                     </div>
                   </div>
-                  <button
-                    className={styles.ghostButton}
-                    type="button"
-                    onClick={() => handleDeleteProvider(provider.id)}
-                  >
-                    Remove
-                  </button>
+                  <div className={styles.rowActions}>
+                    <button
+                      className={styles.ghostButton}
+                      type="button"
+                      onClick={() => handleEditProvider(provider)}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className={styles.ghostButton}
+                      type="button"
+                      onClick={() => handleDeleteProvider(provider.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
                 </div>
               ))
             )}

@@ -103,11 +103,6 @@
   gap: 6px;
 }
 
-.fieldInline {
-  display: flex;
-  align-items: center;
-}
-
 .label {
   font-size: 11px;
   text-transform: uppercase;
@@ -150,6 +145,11 @@
 
 .button:hover {
   background: #ffffff;
+}
+
+.form .ghostButton {
+  height: 36px;
+  align-self: end;
 }
 
 .banner {
@@ -201,6 +201,11 @@
 .rowMeta {
   font-size: 11px;
   color: #8f8f8f;
+}
+
+.rowActions {
+  display: flex;
+  gap: 8px;
 }
 
 .ghostButton {
