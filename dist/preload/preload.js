@@ -9,7 +9,8 @@ electron_1.contextBridge.exposeInMainWorld("pnife", {
         setDefault: (id) => electron_1.ipcRenderer.invoke("pnife:providers:setDefault", id)
     },
     tools: {
-        list: () => electron_1.ipcRenderer.invoke("pnife:tools:list")
+        list: () => electron_1.ipcRenderer.invoke("pnife:tools:list"),
+        save: (tools) => electron_1.ipcRenderer.invoke("pnife:tools:save", tools)
     },
     pipeline: {
         run: (pipeline, context) => electron_1.ipcRenderer.invoke("pnife:pipeline:run", pipeline, context)

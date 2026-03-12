@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const electron_1 = require("electron");
 const node_path_1 = __importDefault(require("node:path"));
 const mainIpc_1 = require("./mainIpc");
+const toolStore_1 = require("./toolStore");
 const isDev = !electron_1.app.isPackaged;
 function getPreloadPath() {
     return node_path_1.default.join(__dirname, "..", "preload", "preload.js");
@@ -35,6 +36,7 @@ async function createWindow() {
     (0, mainIpc_1.createMainIpc)({ ipcMain: electron_1.ipcMain, win });
 }
 electron_1.app.whenReady().then(async () => {
+    (0, toolStore_1.ensureToolsSeeded)();
     await createWindow();
     electron_1.app.on("activate", async () => {
         if (electron_1.BrowserWindow.getAllWindows().length === 0) {

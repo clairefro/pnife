@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import { createMainIpc } from "./mainIpc";
+import { ensureToolsSeeded } from "./toolStore";
 
 const isDev = !app.isPackaged;
 
@@ -38,6 +39,7 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
+  ensureToolsSeeded();
   await createWindow();
 
   app.on("activate", async () => {

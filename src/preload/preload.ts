@@ -21,7 +21,9 @@ contextBridge.exposeInMainWorld("pnife", {
       ipcRenderer.invoke("pnife:providers:setDefault", id)
   },
   tools: {
-    list: (): Promise<ToolDefinition[]> => ipcRenderer.invoke("pnife:tools:list")
+    list: (): Promise<ToolDefinition[]> => ipcRenderer.invoke("pnife:tools:list"),
+    save: (tools: ToolDefinition[]): Promise<ToolDefinition[]> =>
+      ipcRenderer.invoke("pnife:tools:save", tools)
   },
   pipeline: {
     run: (pipeline: Pipeline, context: PnifeContext): Promise<{ runId: string; context: PnifeContext }> =>

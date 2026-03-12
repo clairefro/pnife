@@ -20,6 +20,7 @@ declare global {
       };
       tools: {
         list: () => Promise<ToolDefinition[]>;
+        save: (tools: ToolDefinition[]) => Promise<ToolDefinition[]>;
       };
       pipeline: {
         run: (pipeline: Pipeline, context: PnifeContext) => Promise<{ runId: string; context: PnifeContext }>;

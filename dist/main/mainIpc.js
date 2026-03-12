@@ -1,7 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.createMainIpc = createMainIpc;
-const tools_1 = require("../shared/tools");
+const toolStore_1 = require("./toolStore");
 const providerStore_1 = require("./providerStore");
 function emitActivity(win, event) {
     win.webContents.send("pnife:activity:event", event);
@@ -76,6 +76,13 @@ async function runAiTextGen(win, config, context, runId) {
         timestamp: now(),
         runId
     });
+    emitActivity(win, {
+        id: `evt_${now()}`,
+        type: "info",
+        message: "Processing...",
+        timestamp: now(),
+        runId
+    });
     const response = await fetch(url, {
         method: "POST",
         headers: {
@@ -104,7 +111,8 @@ function createMainIpc({ ipcMain, win }) {
     ipcMain.handle("pnife:providers:upsert", async (_event, provider) => (0, providerStore_1.upsertProvider)(provider));
     ipcMain.handle("pnife:providers:delete", async (_event, id) => (0, providerStore_1.deleteProvider)(id));
     ipcMain.handle("pnife:providers:setDefault", async (_event, id) => (0, providerStore_1.setDefaultProvider)(id));
-    ipcMain.handle("pnife:tools:list", () => tools_1.starterTools);
+    ipcMain.handle("pnife:tools:list", () => (0, toolStore_1.listTools)());
+    ipcMain.handle("pnife:tools:save", (_event, tools) => (0, toolStore_1.saveTools)(tools));
     ipcMain.handle("pnife:pipeline:run", async (_event, pipeline, context) => {
         const runId = `run_${now()}`;
         const providers = await (0, providerStore_1.listProviders)();
@@ -140,7 +148,25 @@ function createMainIpc({ ipcMain, win }) {
             if (step.kind === "transform" && step.config?.type === "ai-text-gen") {
                 const config = step.config;
                 try {
+                    const providerId = await resolveProviderId(config, updated);
+                    const providerInfo = await (0, providerStore_1.getProviderSecret)(providerId);
+                    const modelName = config.model ?? providerInfo?.model ?? "";
+                    const providerLabel = providerInfo ? `${providerInfo.name} • ${modelName}` : modelName;
+                    emitActivity(win, {
+                        id: `evt_${now()}`,
+                        type: "info",
+                        message: `Processing: ${step.name}${providerLabel ? ` | ${providerLabel}` : ""}`,
+                        timestamp: now(),
+                        runId
+                    });
                     updated = await runAiTextGen(win, config, updated, runId);
+                    emitActivity(win, {
+                        id: `evt_${now()}`,
+                        type: "info",
+                        message: `Done: ${step.name}`,
+                        timestamp: now(),
+                        runId
+                    });
                     emitActivity(win, {
                         id: `evt_${now()}`,
                         type: "stream",
