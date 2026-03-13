@@ -98,6 +98,11 @@
   gap: 10px;
 }
 
+.logsBody {
+  max-height: 300px;
+  overflow: auto;
+}
+
 .card {
   border: 1px solid var(--color-border);
   background: var(--color-bg);
@@ -204,7 +209,6 @@
 .row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 12px;
   border: 1px solid var(--color-border);
   background: var(--color-bg);
@@ -243,6 +247,7 @@
   display: flex;
   gap: 8px;
   align-items: center;
+  margin-left: auto;
 }
 
 .toolsLayout {
@@ -280,6 +285,15 @@
   background: var(--color-bg);
 }
 
+.pipelineRowUpcoming {
+  opacity: 0.45;
+}
+
+.pipelineIndicatorSpacer {
+  width: 10px;
+  height: 10px;
+}
+
 .pipelineIndicator {
   width: 10px;
   height: 10px;
@@ -301,27 +315,67 @@
   box-shadow: 0 0 0 4px rgba(255, 107, 107, 0.15);
 }
 
+.pipelineCheckmark {
+  width: 10px;
+  height: 10px;
+  margin-top: 2px;
+  color: var(--color-success);
+  font-size: 12px;
+  line-height: 1;
+  font-weight: 600;
+}
+
 .pipelineMain {
   display: grid;
   gap: 6px;
 }
 
 .pipelineLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 12px;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
+  letter-spacing: 0.3px;
   color: var(--color-text);
 }
 
-.pipelineKind {
-  color: var(--color-muted);
+.pipelineKindLabel {
   font-size: 11px;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+}
+
+.pipelineKindTransform {
+  color: var(--color-transform);
+}
+
+.pipelineKindOutput {
+  color: var(--color-accent);
+}
+
+.pipelineName {
+  color: var(--color-text);
 }
 
 .pipelineOutput {
   font-size: 12px;
   color: var(--color-muted-strong);
   white-space: pre-wrap;
+}
+
+.pipelineDetails {
+  display: grid;
+  gap: 6px;
+}
+
+.pipelineSummary {
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.2px;
+  color: var(--color-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .testbenchActions {
@@ -427,6 +481,10 @@
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .toolRowActive {
@@ -435,6 +493,23 @@
   padding: 10px 12px;
   text-align: left;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.toolDelete {
+  background: transparent;
+  border: 1px solid var(--color-border-strong);
+  color: var(--color-danger-soft);
+  font-size: 11px;
+  padding: 4px 8px;
+  cursor: pointer;
+}
+
+.toolDelete:hover {
+  border-color: var(--color-danger-soft);
 }
 
 .stepsPanel {

@@ -6,6 +6,7 @@ type ToolsListProps = {
   selectedToolId: string | null;
   onSelect: (id: string) => void;
   onAddTool: () => void;
+  onDeleteTool: (id: string) => void;
 };
 
 export default function ToolsList({
@@ -13,6 +14,7 @@ export default function ToolsList({
   selectedToolId,
   onSelect,
   onAddTool,
+  onDeleteTool,
 }: ToolsListProps) {
   return (
     <div className={styles.toolsList}>
@@ -23,10 +25,18 @@ export default function ToolsList({
         </button>
       </div>
       {tools.map((tool) => (
-        <button
+        <div
           key={tool.id}
           className={selectedToolId === tool.id ? styles.toolRowActive : styles.toolRow}
           onClick={() => onSelect(tool.id)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              onSelect(tool.id);
+            }
+          }}
         >
           <div className={styles.rowMain}>
             <div className={styles.rowTitle}>{tool.name}</div>
@@ -34,7 +44,17 @@ export default function ToolsList({
               {tool.pipeline.length} steps • {tool.description}
             </div>
           </div>
-        </button>
+          <button
+            className={styles.toolDelete}
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              onDeleteTool(tool.id);
+            }}
+          >
+            Delete
+          </button>
+        </div>
       ))}
     </div>
   );

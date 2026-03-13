@@ -24,10 +24,10 @@ export default function ActivityFeed({
 }: ActivityFeedProps) {
   return (
     <section className={styles.panel}>
-      <div className={styles.panelTitle}>Activity Feed</div>
-      <div className={styles.panelBody}>
+      <div className={styles.panelTitle}>Logs</div>
+      <div className={`${styles.panelBody} ${styles.logsBody}`}>
         {activity.length === 0 ? (
-          <div className={styles.muted}>No activity yet.</div>
+          <div className={styles.muted}>No logs yet.</div>
         ) : (
           activity.map((event) => (
             <div key={event.id} className={styles.activityItem}>

@@ -33,6 +33,7 @@ export default function App() {
   >([]);
   const activityEndRef = useRef<HTMLDivElement | null>(null);
   const [currentRunId, setCurrentRunId] = useState<string | null>(null);
+  const currentRunIdRef = useRef<string | null>(null);
   const lastRunInputRef = useRef<string>("");
   const [providerForm, setProviderForm] = useState<{
     name: string;
@@ -63,7 +64,11 @@ export default function App() {
   const [pipelineErrors, setPipelineErrors] = useState<Record<string, boolean>>(
     {},
   );
+  const [pipelineComplete, setPipelineComplete] = useState(false);
   const pipelineCurrentStepRef = useRef<string | null>(null);
+  const [pendingDeleteToolId, setPendingDeleteToolId] = useState<string | null>(
+    null,
+  );
   const [providerTests, setProviderTests] = useState<
     Record<
       string,
@@ -101,15 +106,17 @@ export default function App() {
       return;
     }
     const unsubscribe = window.pnife.activity.onEvent((event) => {
-      if (event.runId && event.runId !== currentRunId) {
+      if (event.runId && event.runId !== currentRunIdRef.current) {
         setActivity([]);
         setCurrentRunId(event.runId);
+        currentRunIdRef.current = event.runId;
         setPipelineCurrentStepId(null);
         pipelineCurrentStepRef.current = null;
         setPipelineOutputs({
           [PIPELINE_INPUT_KEY]: lastRunInputRef.current,
         });
         setPipelineErrors({});
+        setPipelineComplete(false);
       }
       const uniqueId = `${event.id}_${Math.random().toString(36).slice(2, 8)}`;
       setActivity((prev) =>
@@ -148,9 +155,12 @@ export default function App() {
           }));
         }
       }
+      if (String(event.message ?? "").startsWith("Pipeline complete")) {
+        setPipelineComplete(true);
+      }
     });
     return () => unsubscribe();
-  }, [currentRunId]);
+  }, []);
 
   useEffect(() => {
     activityEndRef.current?.scrollIntoView({
@@ -173,6 +183,7 @@ export default function App() {
     setPipelineCurrentStepId(null);
     pipelineCurrentStepRef.current = null;
     setPipelineErrors({});
+    setPipelineComplete(false);
   }, [selectedToolId]);
 
   const providerOptions = useMemo(
@@ -342,6 +353,27 @@ export default function App() {
       tool.id === toolId ? { ...tool, name: trimmed } : tool,
     );
     await persistTools(nextTools);
+  }
+
+  async function handleDeleteTool(toolId: string) {
+    const nextTools = tools.filter((tool) => tool.id !== toolId);
+    await persistTools(nextTools);
+    if (selectedToolId === toolId) {
+      setSelectedToolId(nextTools[0]?.id ?? null);
+    }
+  }
+
+  function requestDeleteTool(toolId: string) {
+    setPendingDeleteToolId(toolId);
+  }
+
+  async function confirmDeleteTool() {
+    if (!pendingDeleteToolId) {
+      return;
+    }
+    const id = pendingDeleteToolId;
+    setPendingDeleteToolId(null);
+    await handleDeleteTool(id);
   }
 
   async function handleAddStep(kind: "transform" | "output") {
@@ -521,6 +553,7 @@ export default function App() {
 
     setActivity([]);
     setCurrentRunId(null);
+    currentRunIdRef.current = null;
     setLastOutput("");
     lastRunInputRef.current = inputText;
     setPipelineOutputs({
@@ -529,6 +562,7 @@ export default function App() {
     setPipelineCurrentStepId(null);
     pipelineCurrentStepRef.current = null;
     setPipelineErrors({});
+    setPipelineComplete(false);
     const context = {
       text: inputText,
       data: {},
@@ -576,6 +610,14 @@ export default function App() {
     }
   }
 
+  function formatPipelinePreview(value: unknown) {
+    const text = formatPipelineValue(value);
+    if (text.length <= 120) {
+      return text;
+    }
+    return `${text.slice(0, 120)}...`;
+  }
+
   function coerceText(value: unknown) {
     if (typeof value === "string") {
       return value;
@@ -601,6 +643,10 @@ export default function App() {
       meta: parts.length > 1 ? parts.slice(1).join(" | ") : "",
     };
   }
+
+  const pendingDeleteTool = pendingDeleteToolId
+    ? tools.find((tool) => tool.id === pendingDeleteToolId)
+    : null;
 
   return (
     <div className={styles.app}>
@@ -663,6 +709,7 @@ export default function App() {
                   selectedToolId={selectedToolId}
                   onSelect={setSelectedToolId}
                   onAddTool={handleAddTool}
+                  onDeleteTool={requestDeleteTool}
                 />
                 <StepsEditor
                   selectedTool={selectedTool}
@@ -712,6 +759,18 @@ export default function App() {
                 formatOutput={formatPipelineValue}
               />
 
+              <PipelinePanel
+                selectedTool={selectedTool}
+                pipelineOutputs={pipelineOutputs}
+                pipelineErrors={pipelineErrors}
+                pipelineCurrentStepId={pipelineCurrentStepId}
+                pipelineComplete={pipelineComplete}
+                formatValue={formatPipelineValue}
+                formatPreview={formatPipelinePreview}
+                inputKey={PIPELINE_INPUT_KEY}
+                outputKey={PIPELINE_OUTPUT_KEY}
+              />
+
               <ActivityFeed
                 activity={activity}
                 activityEndRef={activityEndRef}
@@ -720,15 +779,6 @@ export default function App() {
                 splitCompletionMessage={splitCompletionMessage}
               />
             </div>
-            <PipelinePanel
-              selectedTool={selectedTool}
-              pipelineOutputs={pipelineOutputs}
-              pipelineErrors={pipelineErrors}
-              pipelineCurrentStepId={pipelineCurrentStepId}
-              formatValue={formatPipelineValue}
-              inputKey={PIPELINE_INPUT_KEY}
-              outputKey={PIPELINE_OUTPUT_KEY}
-            />
           </div>
           {pendingDeleteStep && (
             <div className={styles.modalBackdrop} role="presentation">
@@ -753,6 +803,33 @@ export default function App() {
                       handleDeleteStep(pendingDeleteStep);
                       setPendingDeleteStep(null);
                     }}
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {pendingDeleteToolId && (
+            <div className={styles.modalBackdrop} role="presentation">
+              <div className={styles.modal} role="dialog" aria-modal="true">
+                <div className={styles.modalTitle}>Delete Tool</div>
+                <div className={styles.modalBody}>
+                  Delete “{pendingDeleteTool?.name ?? "this tool"}”? This will
+                  remove its steps and cannot be undone.
+                </div>
+                <div className={styles.modalActions}>
+                  <button
+                    type="button"
+                    className={styles.ghostButton}
+                    onClick={() => setPendingDeleteToolId(null)}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.dangerButton}
+                    onClick={confirmDeleteTool}
                   >
                     Delete
                   </button>
